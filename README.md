@@ -1,12 +1,13 @@
 # Allow `@experimental`
 
-This repository currently contains an M0 compiler-plugin reproduction for
-Scala 3.9.0. It is a narrow feasibility implementation, not a production-ready
-plugin or a published API.
+This repository contains a bounded Scala 3.9.0 compiler-plugin implementation
+and its M0/M1 verification matrices. It is not a production-ready plugin or a
+published API. Other exact Scala versions are not qualified.
 
-At the proved boundary, a provisional `@allowExperimental` marker permits an
-ordinary, non-inline `def` body to call an experimental definition without
-making that `def` experimental to callers:
+At the tested boundary, a provisional `@allowExperimental` marker permits
+ordinary/private non-inline `def` implementation bodies to use supported
+experimental term references without making those methods experimental to
+callers:
 
 ```scala
 import scala.annotation.experimental
@@ -25,31 +26,51 @@ The implementation uses three uniquely named Scala 3.9.0 compiler phases:
 
 1. capture the exact annotated owner after `posttyper` and remove the marker
    before `pickler`;
-2. selectively check all compilation units after `postInlining`, then
+2. select supported RHS term nodes structurally and check all compilation units
+   after `postInlining`, then
    temporarily remove only the experimental provider annotations needed to
    avoid the built-in duplicate rejection in `crossVersionChecks`;
-3. restore the exact saved provider annotations after the transform group that
-   contains `crossVersionChecks`.
+3. restore each provider's complete saved annotation list, preserving object
+   identity, multiplicity and order, after the transform group that contains
+   `crossVersionChecks`. Unexpected annotation changes in that window report
+   an invariant error.
 
 The annotation and plugin artifacts are separate and their package, artifact,
 and version coordinates are provisional. A separately compiled ordinary
 consumer of `bar` needs neither artifact and does not use `-experimental`.
 
-Run the retained positive, negative, separate-compilation, plugin-absent, and
-TASTy inspection matrix with:
+Run the retained regression and implementation-body matrices with:
 
 ```text
 sbt -batch verifyM0
+sbt -batch verifyM1
 ```
 
-M0 intentionally does not claim support for Scala 3.3.8 or 3.8.4, inline
-owners, vals, classes/objects/traits, constructors, signatures or types,
-imports in every position, overrides, arbitrary blocks, IDE/BSP, incremental
-compilation, plugin coexistence, or full parity with every reference form in
-`CrossVersionChecks`.
+The M1 gate generates readable fixtures and compiler/phase/decompiler logs in
+`target/m1-verification`. Both gates assert diagnostics for expected failures.
+
+| Reference/placement | Scala 3.9.0 boundary |
+|---|---|
+| Ordinary/private method-body term `Ident`/`Select` | Supported for the tested direct method and stable-value providers |
+| Nested local non-inline method implementation | Inherits permission from the allowed enclosing implementation |
+| Ordinary qualifier member import, then supported call | Call is permitted; the import alone needs no permission, even without the plugin |
+| Experimental class construction, constructor-only experimental provider | Rejected |
+| Experimental body-local type annotation, ascription, type argument | Rejected |
+| Experimental parameter/return type, including inferred return | Rejected; a marker never authorizes a public signature |
+| Experimental owner import | Rejected |
+| Experimental inline provider | Rejected by earlier compiler checking; not enabled by this late-check mechanism |
+| Inline owner/nested inline, independently marked local method | Explicitly unsupported |
+| Nested class body, experimental default argument, experimental annotation argument | Not inherited as implementation permission |
+
+Class-carried experimental providers and provider override edges retain their
+fail-closed guards. Permission owners such as vals, classes, constructors and
+arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
+parity, exception-proof restoration, multi-plugin coexistence, incremental or
+repeated-run qualification, IDE/BSP support, or a macro/Quasiquotes integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
-ordinary diagnostic. A marker on a non-experimental definition is currently
-accepted and retained in TASTy; testing showed that annotating the marker class
-with `@compileTimeOnly` does not change that behavior on Scala 3.9.0, so M0 does
-not use that misleading meta-annotation.
+ordinary diagnostic: permission safety is fail-closed. A marker on otherwise
+ordinary code is accepted and retained in TASTy without the plugin. This inert
+marker is an accepted usability contract, not permission leakage. The marker
+remains a parameterless final `StaticAnnotation`; the prior `@compileTimeOnly`
+probe did not enforce a stronger diagnostic on this compiler and is not used.

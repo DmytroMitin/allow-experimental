@@ -7,6 +7,7 @@ import dotty.tools.dotc.core.*
 import Annotations.Annotation
 import Contexts.*
 import Flags.*
+import NameKinds.DefaultGetterName
 import Symbols.*
 import Types.*
 import dotty.tools.dotc.plugins.{PluginPhase, StandardPlugin}
@@ -36,10 +37,17 @@ private object AllowExperimentalPlugin:
     "@allowExperimental M0 does not support experimental providers inherited from class owners"
   val UnsupportedOverrideMessage =
     "@allowExperimental M0 does not support experimental providers that participate in overrides"
+  val UnsupportedLocalOwnerMessage =
+    "@allowExperimental M1 does not support independently annotated local defs"
+  val UnsupportedNestedInlineMessage =
+    "@allowExperimental M1 does not support nested inline definitions"
+  val UnsupportedMetadataMessage =
+    "@allowExperimental M1 does not support experimental annotation arguments"
 
 private final class CompilationState:
   val allowedOwners: mutable.LinkedHashSet[Symbol] = mutable.LinkedHashSet.empty
-  val providerAnnotations: mutable.LinkedHashMap[Symbol, Annotation] = mutable.LinkedHashMap.empty
+  val providerAnnotations: mutable.LinkedHashMap[Symbol, List[Annotation]] = mutable.LinkedHashMap.empty
+  val neutralizedAnnotations: mutable.LinkedHashMap[Symbol, List[Annotation]] = mutable.LinkedHashMap.empty
   val providerPositions: mutable.LinkedHashMap[Symbol, SrcPos] = mutable.LinkedHashMap.empty
   val encounteredMethods: mutable.LinkedHashSet[Symbol] = mutable.LinkedHashSet.empty
   val neutralizedProviders: mutable.LinkedHashSet[Symbol] = mutable.LinkedHashSet.empty
@@ -66,8 +74,8 @@ private final class CompilationState:
       report.error(AllowExperimentalPlugin.UnsupportedClassCarrierMessage, pos)
     else
       carrier.getAnnotation(defn.ExperimentalAnnot) match
-        case Some(annotation) =>
-          providerAnnotations.getOrElseUpdate(carrier, annotation)
+        case Some(_) =>
+          providerAnnotations.getOrElseUpdate(carrier, carrier.annotations)
           providerPositions.getOrElseUpdate(carrier, pos)
         case None =>
           report.error(
@@ -84,15 +92,20 @@ private final class CaptureAllowedOwners(state: CompilationState) extends Plugin
     val marker = state.markerSymbol
     if marker.exists && symbol.hasAnnotation(marker) then
       val supported = symbol.isTerm && symbol.is(Method) && !symbol.isConstructor && !symbol.is(Inline)
-      if supported then state.allowedOwners += symbol
+      if supported && symbol.isLocal then report.error(AllowExperimentalPlugin.UnsupportedLocalOwnerMessage, pos)
+      else if supported then state.allowedOwners += symbol
       else report.error(AllowExperimentalPlugin.UnsupportedOwnerMessage, pos)
       symbol.removeAnnotation(marker)
       if symbol.hasAnnotation(marker) then
         report.error("allow-experimental internal invariant failed: permission marker removal did not take effect", pos)
 
-  override def transformDefDef(tree: tpd.DefDef)(using Context): tpd.Tree =
+  override def prepareForDefDef(tree: tpd.DefDef)(using Context): Context =
     capture(tree.symbol, tree.srcPos)
-    tree
+    // Run before children/inlining: an inline local body must not acquire
+    // permission merely because its expansion later appears in an allowed RHS.
+    if tree.symbol.is(Inline) && state.isAllowedScope(tree.symbol.owner) then
+      report.error(AllowExperimentalPlugin.UnsupportedNestedInlineMessage, tree.srcPos)
+    ctx
 
   override def transformValDef(tree: tpd.ValDef)(using Context): tpd.Tree =
     capture(tree.symbol, tree.srcPos)
@@ -109,10 +122,37 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
   override val runsAfter: Set[String] = Set(PostInlining.name)
   override val runsBefore: Set[String] = Set(CrossVersionChecks.name)
 
-  private def checkTermReference(sym: Symbol, pos: SrcPos)(using Context): Unit =
+  private val bodyReferences = new java.util.IdentityHashMap[Tree, java.lang.Boolean]()
+
+  override def prepareForDefDef(tree: DefDef)(using Context): Context =
+    if state.allowedOwners.contains(tree.symbol) then
+      // Match typed-tree roles, not positions or source spelling. Only RHS
+      // executable terms (including non-inline local-def RHSs) are eligible.
+      // Signatures, class bodies, type trees and imports remain restricted.
+      // Symbol annotation arguments are checked separately, not by MegaPhase.
+      val collect = new TreeTraverser:
+        def traverse(part: Tree)(using Context): Unit = part match
+          case nested: DefDef =>
+            if !nested.symbol.is(Inline) && !nested.symbol.isConstructor
+                && !nested.name.is(DefaultGetterName) then traverse(nested.rhs)
+          case value: ValDef => traverse(value.rhs)
+          case _: TypeDef | _: Template | _: TypeTree | _: ImportOrExport => ()
+          case Typed(expr, _) => traverse(expr)
+          case Annotated(arg, _) => traverse(arg)
+          case ref: RefTree if ref.isTerm && !ref.symbol.isConstructor =>
+            bodyReferences.put(ref, java.lang.Boolean.TRUE)
+            traverseChildren(ref)
+          case other if other.isType => ()
+          case other => traverseChildren(other)
+      collect.traverse(tree.rhs)
+    ctx
+
+  private def checkTermReference(tree: Tree)(using Context): Unit =
+    val sym = tree.symbol
+    val pos = tree.srcPos
     if sym.isExperimental then
       val compilerPermission = ctx.owner.isInExperimentalScope
-      val markerPermission = state.isAllowedScope(ctx.owner)
+      val markerPermission = bodyReferences.containsKey(tree) && state.isAllowedScope(ctx.owner)
       if markerPermission && !compilerPermission then state.rememberProvider(sym, pos)
       else if !compilerPermission then Feature.checkExperimentalDef(sym, pos)
 
@@ -121,11 +161,13 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
       Feature.checkExperimentalDef(sym, pos)
 
   override def transformIdent(tree: Ident)(using Context): Ident =
-    checkTermReference(tree.symbol, tree.srcPos)
+    if tree.isTerm then checkTermReference(tree)
+    else checkUnsupportedReference(tree.symbol, tree.srcPos)
     tree
 
   override def transformSelect(tree: Select)(using Context): Select =
-    checkTermReference(tree.symbol, tree.srcPos)
+    if tree.isTerm then checkTermReference(tree)
+    else checkUnsupportedReference(tree.symbol, tree.srcPos)
     tree
 
   override def transformNew(tree: New)(using Context): New =
@@ -136,6 +178,10 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
     tree.tpe.foreachPart:
       case TypeRef(_, sym: Symbol) => checkUnsupportedReference(sym, tree.srcPos)
       case TermRef(_, sym: Symbol) => checkUnsupportedReference(sym, tree.srcPos)
+      // Expression annotations are lowered to AnnotatedType; foreachPart
+      // visits that type but intentionally does not enter its annotation tree.
+      case AnnotatedType(_, annotation) if !ctx.owner.isInExperimentalScope =>
+        checkAnnotationArguments(annotation)
       case _ =>
     tree
 
@@ -151,7 +197,35 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
 
   override def transformDefDef(tree: DefDef)(using Context): DefDef =
     state.encounteredMethods += tree.symbol
+    checkMetadata(tree.symbol)
     tree
+
+  override def transformValDef(tree: ValDef)(using Context): ValDef =
+    checkMetadata(tree.symbol)
+    tree
+
+  override def transformTypeDef(tree: TypeDef)(using Context): TypeDef =
+    checkMetadata(tree.symbol)
+    tree
+
+  private def checkMetadata(symbol: Symbol)(using Context): Unit =
+    if symbol.exists && !symbol.isInExperimentalScope then
+      // CrossVersionChecks checks annotation classes but not all argument
+      // references. Classify these explicitly before touching provider state.
+      symbol.annotations.foreach(checkAnnotationArguments)
+
+  private def checkAnnotationArguments(annotation: Annotation)(using Context): Unit =
+    def rejectExperimental(sym: Symbol, pos: SrcPos): Unit =
+      if sym.isExperimental then report.error(AllowExperimentalPlugin.UnsupportedMetadataMessage, pos)
+    annotation.tree.foreachSubTree:
+      case ref: RefTree => rejectExperimental(ref.symbol, ref.srcPos)
+      case tpt: TypeTree =>
+        tpt.tpe.foreachPart:
+          case TypeRef(_, sym: Symbol) => rejectExperimental(sym, tpt.srcPos)
+          case TermRef(_, sym: Symbol) => rejectExperimental(sym, tpt.srcPos)
+          case AnnotatedType(_, nested) => checkAnnotationArguments(nested)
+          case _ =>
+      case _ =>
 
   override def runOn(units: List[CompilationUnit])(using runCtx: Context): List[CompilationUnit] =
     val checked = super.runOn(units)
@@ -173,7 +247,9 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
               s"allow-experimental internal invariant failed: ${provider.showLocated} remained experimental after neutralization",
               provider.srcPos
             )
-          else state.neutralizedProviders += provider
+          else
+            state.neutralizedProviders += provider
+            state.neutralizedAnnotations(provider) = provider.annotations
     guardAndNeutralize(using runCtx.fresh.setPhase(this.start))
     checked
 
@@ -187,9 +263,14 @@ private final class RestoreExperimentalProviders(state: CompilationState) extend
     given Context = runCtx.fresh.setPhase(this.start)
     state.neutralizedProviders.foreach: provider =>
       state.providerAnnotations.get(provider) match
-        case Some(annotation) =>
-          provider.addAnnotation(annotation)
-          if !provider.hasAnnotation(defn.ExperimentalAnnot) then
+        case Some(annotations) =>
+          val expected = state.neutralizedAnnotations(provider)
+          val current = provider.annotations
+          if current.size != expected.size || !current.lazyZip(expected).forall((a, b) => a eq b) then
+            report.error("allow-experimental internal invariant failed: provider annotations changed inside the neutralization window", provider.srcPos)
+          // Preserve every original annotation object, multiplicity and order.
+          provider.denot.annotations = annotations
+          if (provider.annotations ne annotations) || !provider.hasAnnotation(defn.ExperimentalAnnot) then
             report.error(
               s"allow-experimental internal invariant failed: ${provider.showLocated} was not restored",
               provider.srcPos
