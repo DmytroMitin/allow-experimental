@@ -1,4 +1,4 @@
-# allow-experimental
+# Allow `@experimental`
 
 A Scala 3 compiler plugin
 
