@@ -1,8 +1,11 @@
 # Allow `@experimental`
 
-This repository contains a bounded Scala 3.9.0 compiler-plugin implementation
-and its M0/M1 verification matrices. It is not a production-ready plugin or a
-published API. Other exact Scala versions are not qualified.
+This repository contains a bounded compiler-plugin implementation and M0/M1
+verification matrices, tested on exact Scala **3.8.4** and **3.9.0**.
+It is not a production-ready plugin or a
+published API. Scala 3.3.8 and other exact versions are not qualified here.
+The two tested lanes have separately compiled plugin and annotation binaries;
+this does not imply compiler-plugin binary compatibility between them.
 
 At the tested boundary, a provisional `@allowExperimental` marker permits
 ordinary/private non-inline `def` implementation bodies to use supported
@@ -22,7 +25,7 @@ def bar(): Int = foo()
 def baz(): Int = bar()
 ```
 
-The implementation uses three uniquely named Scala 3.9.0 compiler phases:
+The implementation uses three uniquely named compiler phases on each exact lane:
 
 1. capture the exact annotated owner after `posttyper` and remove the marker
    before `pickler`;
@@ -39,17 +42,37 @@ The annotation and plugin artifacts are separate and their package, artifact,
 and version coordinates are provisional. A separately compiled ordinary
 consumer of `bar` needs neither artifact and does not use `-experimental`.
 
-Run the retained regression and implementation-body matrices with:
+Run both exact lanes from clean, separate sbt sessions with:
 
 ```text
-sbt -batch verifyM0
-sbt -batch verifyM1
+bash scripts/verify-lanes.sh
 ```
 
-The M1 gate generates readable fixtures and compiler/phase/decompiler logs in
-`target/m1-verification`. Both gates assert diagnostics for expected failures.
+Scala 3.9.0 remains the default. To run one lane explicitly:
 
-| Reference/placement | Scala 3.9.0 boundary |
+```text
+sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1
+sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1
+```
+
+`verifyM0` and `verifyM1` use the active exact lane. `verifyLane` checks compiler
+identity, lane-built jar metadata, separate output roots, and rejection of
+wrong-lane inputs. Each lane runs the same 13 M0 and 51 M1 checks plus five
+build-structure checks; expected failures assert the relevant diagnostics.
+
+Each project's build state and artifacts live under `target/scala-<version>`;
+cleaning a lane leaves the other lane's outputs intact. Root fixture sources,
+commands and compiler/phase/decompiler logs live in
+`target/scala-<version>/m0-verification` and `m1-verification`. The script retains
+per-lane summaries in `target/verification-logs`.
+
+Jar names and coordinates remain provisional. The current `_3` names do not
+make a plugin jar portable between compilers; verification uses the artifact
+built for that exact lane. A future plugin release should use an exact-version
+distinction (such as full-cross coordinates), but publication remains skipped
+and the annotation artifact's eventual compatibility policy is undecided.
+
+| Reference/placement | Exact Scala 3.8.4 / 3.9.0 tested boundary |
 |---|---|
 | Ordinary/private method-body term `Ident`/`Select` | Supported for the tested direct method and stable-value providers |
 | Nested local non-inline method implementation | Inherits permission from the allowed enclosing implementation |
@@ -73,4 +96,4 @@ ordinary diagnostic: permission safety is fail-closed. A marker on otherwise
 ordinary code is accepted and retained in TASTy without the plugin. This inert
 marker is an accepted usability contract, not permission leakage. The marker
 remains a parameterless final `StaticAnnotation`; the prior `@compileTimeOnly`
-probe did not enforce a stronger diagnostic on this compiler and is not used.
+probe did not enforce a stronger diagnostic on Scala 3.9.0 and is not used.

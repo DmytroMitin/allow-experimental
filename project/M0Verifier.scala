@@ -10,14 +10,18 @@ object M0Verifier {
 
   def verify(
       root: File,
+      scalaVersion: String,
       annotationJar: File,
       pluginJar: File,
       compilerClasspath: Seq[File],
       log: Logger
   ): Unit = {
-    val work = root / "target" / "m0-verification"
+    VerificationLane.validateInputs(scalaVersion, annotationJar, pluginJar, compilerClasspath)
+    val work = VerificationLane.workDirectory(root, scalaVersion, "m0")
     IO.delete(work)
     IO.createDirectory(work)
+    VerificationLane.recordInputs(work, scalaVersion, annotationJar, pluginJar, compilerClasspath)
+    log.info(s"M0 Scala $scalaVersion: ${work.getAbsolutePath}")
 
     val compilerCp = compilerClasspath.map(_.getAbsolutePath)
     val libraryCp = compilerCp.filter { path =>
@@ -124,6 +128,7 @@ object M0Verifier {
       annotationCp :+ (work / "plugin-absent-meaningless").getAbsolutePath
     )
     expectSuccess("plugin-absent marker decompilation", meaninglessDecompilation)
+    IO.write(work / "meaningless-marker-decompiled.log", meaninglessDecompilation.output)
     val meaninglessSource = stripAnsi(meaninglessDecompilation.output)
     require(
       definitionLine(meaninglessSource, "ordinary").contains("allowExperimental"),
@@ -195,6 +200,7 @@ object M0Verifier {
     require(tasty.isFile, s"missing provider TASTy: ${tasty.getAbsolutePath}")
     val decompilation = decompile(root, tasty, compilerCp, externalClasspath)
     expectSuccess("provider TASTy decompilation", decompilation)
+    IO.write(work / "provider-decompiled.log", decompilation.output)
     val decompiledSource = stripAnsi(decompilation.output)
     val fooLine = definitionLine(decompiledSource, "foo")
     val barLine = definitionLine(decompiledSource, "bar")
@@ -245,6 +251,8 @@ object M0Verifier {
       line => outputBuffer.append(line).append('\n')
     )
     val exit = Process(arguments.toSeq, root).!(logger)
+    IO.write(output / "compiler-command.txt", arguments.mkString("\n") + "\n")
+    IO.write(output / "compiler.log", outputBuffer.result())
     Compilation(exit, outputBuffer.result())
   }
 

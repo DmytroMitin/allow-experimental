@@ -109,11 +109,14 @@ object PrivateUse:
 class Broken extends Required""", "needs to be abstract")
   )
 
-  def verify(root: File, annotationJar: File, pluginJar: File,
+  def verify(root: File, scalaVersion: String, annotationJar: File, pluginJar: File,
       compilerClasspath: Seq[File], log: Logger): Unit = {
-    val work = root / "target" / "m1-verification"
+    VerificationLane.validateInputs(scalaVersion, annotationJar, pluginJar, compilerClasspath)
+    val work = VerificationLane.workDirectory(root, scalaVersion, "m1")
     IO.delete(work)
     IO.createDirectory(work)
+    VerificationLane.recordInputs(work, scalaVersion, annotationJar, pluginJar, compilerClasspath)
+    log.info(s"M1 Scala $scalaVersion: ${work.getAbsolutePath}")
     val compilerCp = compilerClasspath.map(_.getAbsolutePath)
     val libraries = compilerClasspath.filter { f =>
       f.getName.startsWith("scala3-library_3-") || f.getName.startsWith("scala-library-")
@@ -139,6 +142,7 @@ class Broken extends Required""", "needs to be abstract")
       val args = Seq("-classpath", cp.mkString(File.pathSeparator), "-d", out.getAbsolutePath) ++
         (if (usePlugin) Seq(s"-Xplugin:${pluginJar.getAbsolutePath}") else Nil) ++ flags ++ files
       val result = run(root, compilerCp, "dotty.tools.dotc.Main", args)
+      IO.write(dir / "compiler-arguments.txt", args.mkString("\n") + "\n")
       IO.write(dir / "compiler.log", result._2)
       (result._1, result._2, out)
     }

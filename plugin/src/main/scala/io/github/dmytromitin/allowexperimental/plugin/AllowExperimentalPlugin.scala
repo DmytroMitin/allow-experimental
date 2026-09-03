@@ -21,7 +21,7 @@ import scala.collection.mutable
 final class AllowExperimentalPlugin extends StandardPlugin:
   override val name: String = "allow-experimental"
   override val description: String =
-    "provisional Scala 3.9.0 proof of non-propagating experimental permission for ordinary defs"
+    "provisional exact-Scala-lane implementation permission for ordinary defs"
 
   override def initialize(options: List[String])(using Context): List[PluginPhase] =
     if options.nonEmpty then
