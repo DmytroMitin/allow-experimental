@@ -55,6 +55,7 @@ Scala 3.9.0 remains the default. To run one lane explicitly:
 sbt -batch '++3.3.8' clean verifyLane verifyM0 verifyM1
 sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1
 sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1
+sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3A
 ```
 
 `verifyM0` and `verifyM1` use the active exact lane. `verifyLane` checks compiler
@@ -67,6 +68,10 @@ cleaning a lane leaves the other lane's outputs intact. Root fixture sources,
 commands and compiler/phase/decompiler logs live in
 `target/scala-<version>/m0-verification` and `m1-verification`. The script retains
 per-lane summaries in `target/verification-logs`.
+
+`verifyM3A` is a separate exact Scala 3.9.0-only implementation-evidence
+gate for a real quoted macro boundary. It is not part of the three-lane M0/M1
+claim and does not imply macro support on 3.8.4 or 3.3.8.
 
 Jar names and coordinates remain provisional. The current `_3` names do not
 make a plugin jar portable between compilers; verification uses the artifact
@@ -89,11 +94,37 @@ and the annotation artifact's eventual compatibility policy is undecided.
 | Inline owner/nested inline, independently marked local method | Explicitly unsupported |
 | Nested class body, experimental default argument, experimental annotation argument | Not inherited as implementation permission |
 
+## Exact Scala 3.9.0 macro implementation evidence
+
+The retained M3A verifier compiles a distinct macro producer whose public inline
+frontend is ordinary and whose private, non-inline implementation alone carries
+`@allowExperimental`. That implementation evaluates the genuinely experimental
+`quotes.reflect.Symbol.info` API without global `-experimental`.
+
+A second compiler invocation expands the public macro from the compiled
+producer using only the exact Scala runtime libraries and producer classes: no
+Allow Experimental plugin, marker artifact, authority annotation, or global
+flag is present. The macro emits a small literal selected from whether the
+`Symbol.info` representation is non-empty, and downstream bytecode inspection
+confirms the `symbol-info-nonempty` result.
+
+The same real implementation without the marker remains rejected. An
+`@allowExperimental inline def` remains unsupported, and a negative-only
+producer compiled with Scala's global flag demonstrates that a directly
+serialized experimental inline reference is rejected by its ordinary
+downstream caller. Global `-experimental` is never used in the positive macro
+proof.
+
+This is exact 3.9.0 dedicated-project evidence pending controller review, not
+complete M3, cross-lane macro qualification, Quasiquotes integration, or a
+public macro API added to this product.
+
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
 parity, exception-proof restoration, multi-plugin coexistence, incremental or
-repeated-run qualification, IDE/BSP support, or a macro/Quasiquotes integration.
+repeated-run qualification, IDE/BSP support, cross-lane macro qualification, or
+Quasiquotes integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise

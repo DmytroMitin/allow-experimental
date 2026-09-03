@@ -49,7 +49,7 @@ object VerificationLane {
 
   def workDirectory(root: File, version: String, gate: String): File = {
     requireLane(version)
-    require(Set("m0", "m1")(gate), s"unknown verification gate: $gate")
+    require(Set("m0", "m1", "m3a")(gate), s"unknown verification gate: $gate")
     root / "target" / s"scala-$version" / s"$gate-verification"
   }
 
