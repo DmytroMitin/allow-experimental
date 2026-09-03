@@ -10,7 +10,7 @@ import Flags.*
 import NameKinds.DefaultGetterName
 import Symbols.*
 import Types.*
-import dotty.tools.dotc.plugins.{PluginPhase, StandardPlugin}
+import dotty.tools.dotc.plugins.PluginPhase
 import dotty.tools.dotc.report
 import dotty.tools.dotc.transform.{Pickler, PostInlining, PostTyper}
 import dotty.tools.dotc.transform.CrossVersionChecks
@@ -18,18 +18,17 @@ import dotty.tools.dotc.util.SrcPos
 
 import scala.collection.mutable
 
-final class AllowExperimentalPlugin extends StandardPlugin:
-  override val name: String = "allow-experimental"
-  override val description: String =
+private[plugin] object AllowExperimentalPluginEntrypoint:
+  val Name: String = "allow-experimental"
+  val Description: String =
     "provisional exact-Scala-lane implementation permission for ordinary defs"
+  val UnsupportedOptionsMessage: String = "allow-experimental M0 accepts no plugin options"
 
-  override def initialize(options: List[String])(using Context): List[PluginPhase] =
-    if options.nonEmpty then
-      report.error("allow-experimental M0 accepts no plugin options")
+  def phases(): List[PluginPhase] =
     val state = CompilationState()
     List(CaptureAllowedOwners(state), CheckAllowedReferences(state), RestoreExperimentalProviders(state))
 
-private object AllowExperimentalPlugin:
+private object AllowExperimentalSemantics:
   val MarkerClassName = "io.github.dmytromitin.allowexperimental.allowExperimental"
   val UnsupportedOwnerMessage =
     "@allowExperimental M0 supports only non-inline def owners"
@@ -53,7 +52,7 @@ private final class CompilationState:
   val neutralizedProviders: mutable.LinkedHashSet[Symbol] = mutable.LinkedHashSet.empty
 
   def markerSymbol(using Context): Symbol =
-    getClassIfDefined(AllowExperimentalPlugin.MarkerClassName)
+    getClassIfDefined(AllowExperimentalSemantics.MarkerClassName)
 
   def isAllowedScope(owner: Symbol)(using Context): Boolean =
     allowedOwners.contains(owner) || owner.ownersIterator.exists(allowedOwners.contains)
@@ -71,7 +70,7 @@ private final class CompilationState:
         pos
       )
     else if carrier != sym then
-      report.error(AllowExperimentalPlugin.UnsupportedClassCarrierMessage, pos)
+      report.error(AllowExperimentalSemantics.UnsupportedClassCarrierMessage, pos)
     else
       carrier.getAnnotation(defn.ExperimentalAnnot) match
         case Some(_) =>
@@ -92,9 +91,9 @@ private final class CaptureAllowedOwners(state: CompilationState) extends Plugin
     val marker = state.markerSymbol
     if marker.exists && symbol.hasAnnotation(marker) then
       val supported = symbol.isTerm && symbol.is(Method) && !symbol.isConstructor && !symbol.is(Inline)
-      if supported && symbol.isLocal then report.error(AllowExperimentalPlugin.UnsupportedLocalOwnerMessage, pos)
+      if supported && symbol.isLocal then report.error(AllowExperimentalSemantics.UnsupportedLocalOwnerMessage, pos)
       else if supported then state.allowedOwners += symbol
-      else report.error(AllowExperimentalPlugin.UnsupportedOwnerMessage, pos)
+      else report.error(AllowExperimentalSemantics.UnsupportedOwnerMessage, pos)
       symbol.removeAnnotation(marker)
       if symbol.hasAnnotation(marker) then
         report.error("allow-experimental internal invariant failed: permission marker removal did not take effect", pos)
@@ -104,7 +103,7 @@ private final class CaptureAllowedOwners(state: CompilationState) extends Plugin
     // Run before children/inlining: an inline local body must not acquire
     // permission merely because its expansion later appears in an allowed RHS.
     if tree.symbol.is(Inline) && state.isAllowedScope(tree.symbol.owner) then
-      report.error(AllowExperimentalPlugin.UnsupportedNestedInlineMessage, tree.srcPos)
+      report.error(AllowExperimentalSemantics.UnsupportedNestedInlineMessage, tree.srcPos)
     ctx
 
   override def transformValDef(tree: tpd.ValDef)(using Context): tpd.Tree =
@@ -187,7 +186,7 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
 
   override def transformOther(tree: Tree)(using Context): Tree =
     val inPackage = ctx.owner.is(Package) || ctx.owner.isPackageObject
-    if !(inPackage && tree.isInstanceOf[ImportOrExport] && Feature.isExperimentalEnabledByImport) then
+    if !(inPackage && tree.isInstanceOf[ImportOrExport] && CompilerAdapter.isExperimentalEnabledByImport) then
       tree.foreachSubTree:
         case ref: Ident => checkUnsupportedReference(ref.symbol, ref.srcPos)
         case ref: Select => checkUnsupportedReference(ref.symbol, ref.srcPos)
@@ -216,7 +215,7 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
 
   private def checkAnnotationArguments(annotation: Annotation)(using Context): Unit =
     def rejectExperimental(sym: Symbol, pos: SrcPos): Unit =
-      if sym.isExperimental then report.error(AllowExperimentalPlugin.UnsupportedMetadataMessage, pos)
+      if sym.isExperimental then report.error(AllowExperimentalSemantics.UnsupportedMetadataMessage, pos)
     annotation.tree.foreachSubTree:
       case ref: RefTree => rejectExperimental(ref.symbol, ref.srcPos)
       case tpt: TypeTree =>
@@ -236,7 +235,7 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
           method != provider && method.allOverriddenSymbols.contains(provider)
         if providerOverrides || providerIsOverridden then
           report.error(
-            AllowExperimentalPlugin.UnsupportedOverrideMessage,
+            AllowExperimentalSemantics.UnsupportedOverrideMessage,
             state.providerPositions(provider)
           )
       if !runCtx.reporter.hasErrors then
@@ -257,7 +256,7 @@ private final class RestoreExperimentalProviders(state: CompilationState) extend
   override val phaseName: String = "allowExperimentalRestoreProviders"
   override val runsAfter: Set[String] = Set(CrossVersionChecks.name)
 
-  override def isRunnable(using Context): Boolean = !ctx.usedBestEffortTasty
+  override def isRunnable(using Context): Boolean = CompilerAdapter.restoreIsRunnable
 
   override def runOn(units: List[CompilationUnit])(using runCtx: Context): List[CompilationUnit] =
     given Context = runCtx.fresh.setPhase(this.start)

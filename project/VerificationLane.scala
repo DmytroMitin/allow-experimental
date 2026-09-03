@@ -5,18 +5,29 @@ import scala.sys.process.{Process, ProcessLogger}
 
 /** Build/test boundary only: never used to branch compiler-plugin semantics. */
 object VerificationLane {
-  val versions = Seq("3.8.4", "3.9.0")
+  val versions = Seq("3.3.8", "3.8.4", "3.9.0")
   val defaultVersion = "3.9.0"
   val manifestKey = "Allow-Experimental-Scala-Version"
+
+  private val scalaLibraryVersions = Map(
+    "3.3.8" -> "2.13.18",
+    "3.8.4" -> "3.8.4",
+    "3.9.0" -> "3.9.0"
+  )
 
   private def requireLane(version: String): Unit =
     require(versions.contains(version), s"unqualified Scala lane: $version")
 
   private def checkCompiler(version: String, cp: Seq[File]): Unit = {
     requireLane(version)
-    Seq("scala3-compiler_3", "scala3-library_3", "scala-library").foreach { artifact =>
+    val expected = Seq(
+      "scala3-compiler_3" -> version,
+      "scala3-library_3" -> version,
+      "scala-library" -> scalaLibraryVersions(version)
+    )
+    expected.foreach { case (artifact, artifactVersion) =>
       val found = cp.filter(_.getName.startsWith(artifact + "-"))
-      require(found.size == 1 && found.head.getName == s"$artifact-$version.jar" && found.head.isFile,
+      require(found.size == 1 && found.head.getName == s"$artifact-$artifactVersion.jar" && found.head.isFile,
         s"wrong $artifact for Scala $version: ${found.mkString(", ")}")
     }
   }
@@ -70,19 +81,23 @@ object VerificationLane {
     val expectedTargets = Seq(root, root / "annotation", root / "plugin").map(_ / "target" / s"scala-$version")
     require(targets.map(_.getCanonicalFile) == expectedTargets.map(_.getCanonicalFile),
       s"shared build-state targets: $targets")
-    require(workDirectory(root, "3.8.4", "m0") != workDirectory(root, "3.9.0", "m0"), "shared M0 output")
-    require(workDirectory(root, "3.8.4", "m1") != workDirectory(root, "3.9.0", "m1"), "shared M1 output")
+    versions.combinations(2).foreach { pair =>
+      val Seq(left, right) = pair
+      require(workDirectory(root, left, "m0") != workDirectory(root, right, "m0"), s"shared M0 output: $pair")
+      require(workDirectory(root, left, "m1") != workDirectory(root, right, "m1"), s"shared M1 output: $pair")
+    }
     log.info(s"LANE PASS [$version] exact-lane build and verification roots")
 
     def rejects(label: String)(body: => Unit): Unit = {
       val rejected = try { body; false } catch { case _: IllegalArgumentException => true }
       require(rejected, s"lane guard accepted $label")
     }
-    val other = versions.find(_ != version).get
     rejects("unqualified lane") { validateInputs("unqualified", annotationJar, pluginJar, cp) }
-    rejects("mismatched compiler") { checkCompiler(other, cp) }
-    rejects("mismatched annotation") { checkArtifact(annotationJar, other) }
-    rejects("mismatched plugin") { checkArtifact(pluginJar, other) }
+    versions.filterNot(_ == version).foreach { other =>
+      rejects(s"mismatched compiler $other") { checkCompiler(other, cp) }
+      rejects(s"mismatched annotation $other") { checkArtifact(annotationJar, other) }
+      rejects(s"mismatched plugin $other") { checkArtifact(pluginJar, other) }
+    }
     log.info(s"LANE PASS [$version] wrong-lane inputs rejected without launching fixtures")
   }
 }

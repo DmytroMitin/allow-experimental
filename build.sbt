@@ -30,6 +30,14 @@ lazy val plugin = project
   .settings(laneSettings)
   .settings(
     name := "allow-experimental-plugin",
+    Compile / unmanagedSourceDirectories += {
+      val adapter = scalaVersion.value match {
+        case "3.3.8" => "scala-3.3.8"
+        case "3.8.4" | "3.9.0" => "scala-3.8.4-3.9.0"
+        case other => sys.error(s"no compiler adapter for Scala $other")
+      }
+      baseDirectory.value / "src" / "main" / adapter
+    },
     libraryDependencies += "org.scala-lang" %% "scala3-compiler" % scalaVersion.value % Provided
   )
 

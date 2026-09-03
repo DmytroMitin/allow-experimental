@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-lanes.sh (qualifies exact 3.8.4 and 3.9.0)" >&2
+  echo "Usage: bash scripts/verify-lanes.sh (qualifies exact 3.3.8, 3.8.4 and 3.9.0)" >&2
   exit 2
 fi
 
@@ -11,7 +11,38 @@ mkdir -p target/verification-logs
 
 # Separate processes prevent the active compiler/classpath from carrying over.
 # Each project's target and clean boundary are also exact-lane-specific.
-for lane in 3.8.4 3.9.0; do
+qualified_lanes=()
+
+verify_preserved() {
+  local earlier="$1"
+  sha256sum --check "target/verification-logs/$earlier-preservation.sha256"
+  echo "ISOLATION PASS [$earlier] earlier-lane artifacts and representative M0/M1 evidence preserved"
+}
+
+for lane in 3.3.8 3.8.4 3.9.0; do
+  for earlier in "${qualified_lanes[@]}"; do
+    verify_preserved "$earlier"
+  done
+
   sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 \
     2>&1 | tee "target/verification-logs/$lane.log"
+
+  for earlier in "${qualified_lanes[@]}"; do
+    verify_preserved "$earlier"
+  done
+
+  evidence=(
+    "annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
+    "plugin/target/scala-$lane/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar"
+    "target/scala-$lane/m0-verification/provider/m0/Library\$package.tasty"
+    "target/scala-$lane/m1-verification/positive/classes/m1/Library\$package.tasty"
+    "target/scala-$lane/m1-verification/positive/compiler.log"
+  )
+  sha256sum "${evidence[@]}" > "target/verification-logs/$lane-preservation.sha256"
+  verify_preserved "$lane"
+  qualified_lanes+=("$lane")
+done
+
+for lane in "${qualified_lanes[@]}"; do
+  verify_preserved "$lane"
 done

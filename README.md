@@ -1,10 +1,11 @@
 # Allow `@experimental`
 
 This repository contains a bounded compiler-plugin implementation and M0/M1
-verification matrices, tested on exact Scala **3.8.4** and **3.9.0**.
+verification matrices, tested on exact Scala **3.3.8**, **3.8.4**, and **3.9.0**.
 It is not a production-ready plugin or a
-published API. Scala 3.3.8 and other exact versions are not qualified here.
-The two tested lanes have separately compiled plugin and annotation binaries;
+published API. Other exact versions are not qualified here; these three
+versions are a finite tested set, not a version interval.
+The tested lanes have separately compiled plugin and annotation binaries;
 this does not imply compiler-plugin binary compatibility between them.
 
 At the tested boundary, a provisional `@allowExperimental` marker permits
@@ -42,7 +43,7 @@ The annotation and plugin artifacts are separate and their package, artifact,
 and version coordinates are provisional. A separately compiled ordinary
 consumer of `bar` needs neither artifact and does not use `-experimental`.
 
-Run both exact lanes from clean, separate sbt sessions with:
+Run all three exact lanes from clean, separate sbt sessions with:
 
 ```text
 bash scripts/verify-lanes.sh
@@ -51,6 +52,7 @@ bash scripts/verify-lanes.sh
 Scala 3.9.0 remains the default. To run one lane explicitly:
 
 ```text
+sbt -batch '++3.3.8' clean verifyLane verifyM0 verifyM1
 sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1
 sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1
 ```
@@ -68,11 +70,13 @@ per-lane summaries in `target/verification-logs`.
 
 Jar names and coordinates remain provisional. The current `_3` names do not
 make a plugin jar portable between compilers; verification uses the artifact
-built for that exact lane. A future plugin release should use an exact-version
+built for that exact lane. The 3.3.8 compiler has a small private source adapter
+for its legacy plugin entrypoint and unavailable import/best-effort APIs; the
+semantic phases remain shared. A future plugin release should use an exact-version
 distinction (such as full-cross coordinates), but publication remains skipped
 and the annotation artifact's eventual compatibility policy is undecided.
 
-| Reference/placement | Exact Scala 3.8.4 / 3.9.0 tested boundary |
+| Reference/placement | Exact Scala 3.3.8 / 3.8.4 / 3.9.0 tested boundary |
 |---|---|
 | Ordinary/private method-body term `Ident`/`Select` | Supported for the tested direct method and stable-value providers |
 | Nested local non-inline method implementation | Inherits permission from the allowed enclosing implementation |

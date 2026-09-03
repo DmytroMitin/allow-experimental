@@ -203,11 +203,14 @@ class Tag(x: Int) extends scala.annotation.StaticAnnotation
     check("ordinary metadata and genuine experimental scope stay valid") {
       require(metadataControls._1 == 0, metadataControls._2)
     }
-    val repeated = compile("repeated-annotations", Seq("Library.scala" -> """package m1
+    val repeatedExperimentalAnnotations =
+      if (scalaVersion == "3.3.8") "@experimental @experimental"
+      else "@experimental(\"first-marker\") @experimental(\"second-marker\")"
+    val repeated = compile("repeated-annotations", Seq("Library.scala" -> s"""package m1
 import scala.annotation.experimental
 import io.github.dmytromitin.allowexperimental.allowExperimental
 class Meta(value: String) extends scala.annotation.StaticAnnotation
-@Meta("before") @experimental("first-marker") @experimental("second-marker") @Meta("after")
+@Meta("before") $repeatedExperimentalAnnotations @Meta("after")
 def repeated(): Int = 1
 @allowExperimental def usesRepeated(): Int = repeated()
 """), sourceCp)
@@ -216,14 +219,25 @@ def repeated(): Int = 1
       val captured = phaseBody(repeated._2, "allowExperimentalCaptureOwners")
       val checked = phaseBody(repeated._2, "allowExperimentalCheckReferences")
       val restored = phaseBody(repeated._2, "allowExperimentalRestoreProviders")
-      val markers = Seq("\"before\"", "\"first-marker\"", "\"second-marker\"", "\"after\"")
-      require(markers.forall(captured.contains), s"missing original annotation fixture: $captured")
-      require(markers.forall(restored.contains), s"provider annotation multiplicity not restored: $restored")
-      require(markers.sortBy(captured.indexOf) == markers.sortBy(restored.indexOf),
-        s"provider annotation order not restored: $restored")
-      require(!checked.contains("first-marker") && !checked.contains("second-marker"),
-        "repeated provider was not neutralized for the check window")
-      require(checked.contains("\"before\"") && checked.contains("\"after\""), "unrelated provider metadata lost")
+      val fixtureAnnotation = """@Meta\("(?:before|after)"\)|@experimental(?:\("[^"]*"\))?""".r
+      def fixtureAnnotations(body: String): List[String] =
+        fixtureAnnotation.findAllIn(body).toList
+      val capturedAnnotations = fixtureAnnotations(captured)
+      val checkedAnnotations = fixtureAnnotations(checked)
+      val restoredAnnotations = fixtureAnnotations(restored)
+      require(capturedAnnotations.count(_.startsWith("@experimental")) == 2,
+        s"missing repeated provider annotations: $capturedAnnotations")
+      require(capturedAnnotations.count(_.startsWith("@Meta")) == 2,
+        s"missing provider metadata: $capturedAnnotations")
+      require(restoredAnnotations == capturedAnnotations,
+        s"complete provider annotation order not restored: captured=$capturedAnnotations restored=$restoredAnnotations")
+      require(checkedAnnotations == capturedAnnotations.filterNot(_.startsWith("@experimental")),
+        s"neutralization changed more than experimental annotations: captured=$capturedAnnotations checked=$checkedAnnotations")
+      if (scalaVersion != "3.3.8") {
+        val messages = Seq("first-marker", "second-marker")
+        require(messages.forall(message => capturedAnnotations.exists(_.contains(message))),
+          s"provider annotation arguments missing: $capturedAnnotations")
+      }
     }
     if (positive._1 == 0) {
       val externalCp = libraries :+ positive._3.getAbsolutePath
