@@ -6,7 +6,7 @@ ThisBuild / publish / skip := true
 
 lazy val verifyM0 = taskKey[Unit]("Run the retained M0 matrix on the active exact Scala lane")
 lazy val verifyM1 = taskKey[Unit]("Run the M1 implementation-body matrix on the active exact Scala lane")
-lazy val verifyM3A = taskKey[Unit]("Run the exact Scala 3.9.0 Symbol.info macro boundary matrix")
+lazy val verifyM3 = taskKey[Unit]("Run the real Symbol.info macro boundary matrix on the active exact Scala lane")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -65,7 +65,7 @@ lazy val root = project
       (plugin / Compile / dependencyClasspath).value.map(_.data),
       streams.value.log
     ),
-    verifyM3A := M3AVerifier.verify(
+    verifyM3 := M3Verifier.verify(
       baseDirectory.value,
       scalaVersion.value,
       (annotation / Compile / packageBin).value,

@@ -1,6 +1,6 @@
 # Allow `@experimental`
 
-This repository contains a bounded compiler-plugin implementation and M0/M1
+This repository contains a bounded compiler-plugin implementation and M0/M1/M3
 verification matrices, tested on exact Scala **3.3.8**, **3.8.4**, and **3.9.0**.
 It is not a production-ready plugin or a
 published API. Other exact versions are not qualified here; these three
@@ -52,26 +52,23 @@ bash scripts/verify-lanes.sh
 Scala 3.9.0 remains the default. To run one lane explicitly:
 
 ```text
-sbt -batch '++3.3.8' clean verifyLane verifyM0 verifyM1
-sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1
-sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1
-sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3A
+sbt -batch '++3.3.8' clean verifyLane verifyM0 verifyM1 verifyM3
+sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1 verifyM3
+sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3
 ```
 
-`verifyM0` and `verifyM1` use the active exact lane. `verifyLane` checks compiler
+`verifyM0`, `verifyM1`, and `verifyM3` use the active exact lane. `verifyLane` checks compiler
 identity, lane-built jar metadata, separate output roots, and rejection of
-wrong-lane inputs. Each lane runs the same 13 M0 and 51 M1 checks plus five
-build-structure checks; expected failures assert the relevant diagnostics.
+wrong-lane inputs. Each lane runs the same 13 M0, 51 M1, and eight M3 checks
+plus five build-structure checks; expected failures assert the relevant
+diagnostics.
 
 Each project's build state and artifacts live under `target/scala-<version>`;
 cleaning a lane leaves the other lane's outputs intact. Root fixture sources,
 commands and compiler/phase/decompiler logs live in
-`target/scala-<version>/m0-verification` and `m1-verification`. The script retains
-per-lane summaries in `target/verification-logs`.
-
-`verifyM3A` is a separate exact Scala 3.9.0-only implementation-evidence
-gate for a real quoted macro boundary. It is not part of the three-lane M0/M1
-claim and does not imply macro support on 3.8.4 or 3.3.8.
+`target/scala-<version>/m0-verification`, `m1-verification`, and
+`m3-verification`. The script retains per-lane summaries and preservation
+ledgers in `target/verification-logs`.
 
 Jar names and coordinates remain provisional. The current `_3` names do not
 make a plugin jar portable between compilers; verification uses the artifact
@@ -94,9 +91,9 @@ and the annotation artifact's eventual compatibility policy is undecided.
 | Inline owner/nested inline, independently marked local method | Explicitly unsupported |
 | Nested class body, experimental default argument, experimental annotation argument | Not inherited as implementation permission |
 
-## Exact Scala 3.9.0 macro implementation evidence
+## Exact three-lane macro implementation evidence
 
-The retained M3A verifier compiles a distinct macro producer whose public inline
+The M3 verifier compiles a distinct macro producer whose public inline
 frontend is ordinary and whose private, non-inline implementation alone carries
 `@allowExperimental`. That implementation evaluates the genuinely experimental
 `quotes.reflect.Symbol.info` API without global `-experimental`.
@@ -110,21 +107,22 @@ confirms the `symbol-info-nonempty` result.
 
 The same real implementation without the marker remains rejected. An
 `@allowExperimental inline def` remains unsupported, and a negative-only
-producer compiled with Scala's global flag demonstrates that a directly
-serialized experimental inline reference is rejected by its ordinary
-downstream caller. Global `-experimental` is never used in the positive macro
-proof.
+producer demonstrates that a directly serialized experimental inline reference
+is rejected by its ordinary downstream caller. Scala 3.8.4 and 3.9.0 use
+`-experimental` only to manufacture that negative producer. Scala 3.3.8 has no
+such option, so the negative producer's inline definition is explicitly
+`@experimental`. Global `-experimental` is never used in a positive proof or in
+any downstream invocation.
 
-This is exact 3.9.0 dedicated-project evidence pending controller review, not
-complete M3, cross-lane macro qualification, Quasiquotes integration, or a
-public macro API added to this product.
+This is exact 3.3.8, 3.8.4, and 3.9.0 implementation evidence pending
+controller review, not a version interval, Quasiquotes integration, or a public
+macro API added to this product.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
 parity, exception-proof restoration, multi-plugin coexistence, incremental or
-repeated-run qualification, IDE/BSP support, cross-lane macro qualification, or
-Quasiquotes integration.
+repeated-run qualification, IDE/BSP support, or Quasiquotes integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise

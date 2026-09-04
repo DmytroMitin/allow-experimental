@@ -49,7 +49,7 @@ object VerificationLane {
 
   def workDirectory(root: File, version: String, gate: String): File = {
     requireLane(version)
-    require(Set("m0", "m1", "m3a")(gate), s"unknown verification gate: $gate")
+    require(Set("m0", "m1", "m3")(gate), s"unknown verification gate: $gate")
     root / "target" / s"scala-$version" / s"$gate-verification"
   }
 
@@ -85,6 +85,7 @@ object VerificationLane {
       val Seq(left, right) = pair
       require(workDirectory(root, left, "m0") != workDirectory(root, right, "m0"), s"shared M0 output: $pair")
       require(workDirectory(root, left, "m1") != workDirectory(root, right, "m1"), s"shared M1 output: $pair")
+      require(workDirectory(root, left, "m3") != workDirectory(root, right, "m3"), s"shared M3 output: $pair")
     }
     log.info(s"LANE PASS [$version] exact-lane build and verification roots")
 

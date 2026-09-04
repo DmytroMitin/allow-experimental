@@ -16,7 +16,7 @@ qualified_lanes=()
 verify_preserved() {
   local earlier="$1"
   sha256sum --check "target/verification-logs/$earlier-preservation.sha256"
-  echo "ISOLATION PASS [$earlier] earlier-lane artifacts and representative M0/M1 evidence preserved"
+  echo "ISOLATION PASS [$earlier] earlier-lane artifacts and representative M0/M1/M3 evidence preserved"
 }
 
 for lane in 3.3.8 3.8.4 3.9.0; do
@@ -24,7 +24,7 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     verify_preserved "$earlier"
   done
 
-  sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 \
+  sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 \
     2>&1 | tee "target/verification-logs/$lane.log"
 
   for earlier in "${qualified_lanes[@]}"; do
@@ -37,6 +37,10 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     "target/scala-$lane/m0-verification/provider/m0/Library\$package.tasty"
     "target/scala-$lane/m1-verification/positive/classes/m1/Library\$package.tasty"
     "target/scala-$lane/m1-verification/positive/compiler.log"
+    "target/scala-$lane/m3-verification/producer-with-permission/classes/m3/MacroApi.tasty"
+    "target/scala-$lane/m3-verification/producer-with-permission/compiler.log"
+    "target/scala-$lane/m3-verification/downstream/javap.log"
+    "target/scala-$lane/m3-verification/serialized-inline-authority.txt"
   )
   sha256sum "${evidence[@]}" > "target/verification-logs/$lane-preservation.sha256"
   verify_preserved "$lane"

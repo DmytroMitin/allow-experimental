@@ -3,10 +3,10 @@ import sbt._
 import scala.collection.mutable.ArrayBuffer
 import scala.sys.process.{Process, ProcessLogger}
 
-/** Exact Scala 3.9.0 real Quotes Symbol.info macro boundary.
+/** Exact-lane real Quotes Symbol.info macro boundary.
   * Producer and downstream consumer are always separate compiler invocations.
   */
-object M3AVerifier {
+object M3Verifier {
   private val scalaDiagnostic = "method info is marked @experimental"
   private val productInlineDiagnostic = "supports only non-inline def owners"
   private val derivedLiteral = "symbol-info-nonempty"
@@ -15,13 +15,12 @@ object M3AVerifier {
 
   def verify(root: File, scalaVersion: String, annotationJar: File, pluginJar: File,
       compilerClasspath: Seq[File], log: Logger): Unit = {
-    require(scalaVersion == "3.9.0", s"M3A qualifies exact Scala 3.9.0 only, not $scalaVersion")
     VerificationLane.validateInputs(scalaVersion, annotationJar, pluginJar, compilerClasspath)
-    val work = VerificationLane.workDirectory(root, scalaVersion, "m3a")
+    val work = VerificationLane.workDirectory(root, scalaVersion, "m3")
     IO.delete(work)
     IO.createDirectory(work)
     VerificationLane.recordInputs(work, scalaVersion, annotationJar, pluginJar, compilerClasspath)
-    log.info(s"M3A Scala $scalaVersion: ${work.getAbsolutePath}")
+    log.info(s"M3 Scala $scalaVersion: ${work.getAbsolutePath}")
 
     val compilerCp = compilerClasspath.map(_.getAbsolutePath)
     val libraries = compilerClasspath.filter { file =>
@@ -34,11 +33,11 @@ object M3AVerifier {
     def check(label: String)(body: => Unit): Unit =
       try {
         body
-        log.info(s"M3A PASS $label")
+        log.info(s"M3 PASS $label")
       } catch {
         case error: IllegalArgumentException =>
           failures += s"$label: ${error.getMessage}"
-          log.error(s"M3A FAIL $label: ${error.getMessage}")
+          log.error(s"M3 FAIL $label: ${error.getMessage}")
       }
 
     val trace = Seq(
@@ -66,7 +65,7 @@ object M3AVerifier {
       CompileResult(result._1, result._2, classes, args)
     }
 
-    val macroWithoutPermission = """package m3a
+    val macroWithoutPermission = """package m3
 import scala.quoted.*
 
 object MacroApi:
@@ -86,7 +85,7 @@ object MacroApi:
       require(!unpermitted.args.contains("-experimental"), "unpermitted control used global -experimental")
     }
 
-    val macroWithPermission = """package m3a
+    val macroWithPermission = """package m3
 import scala.quoted.*
 import io.github.dmytromitin.allowexperimental.allowExperimental
 
@@ -109,16 +108,23 @@ object MacroApi:
     }
 
     if (positive.exit == 0) {
-      val producerTasty = positive.classes / "m3a" / "MacroApi.tasty"
+      val producerTasty = positive.classes / "m3" / "MacroApi.tasty"
       val producerDecompiled = runJava(root, compilerCp, "dotty.tools.dotc.decompiler.Main",
         Seq("-classpath", producerCp.mkString(File.pathSeparator), "-color:never", producerTasty.getAbsolutePath))
       IO.write(work / "producer-with-permission" / "decompiled.log", producerDecompiled._2)
+      val javap = new File(sys.props("java.home"), "bin/javap").getAbsolutePath
+      val producerBytecode = runExecutable(root,
+        Seq(javap, "-classpath", positive.classes.getAbsolutePath, "-p", "m3.MacroApi$"))
+      IO.write(work / "producer-with-permission" / "javap.log", producerBytecode._2)
       check("producer TASTy confines Symbol.info to ordinary private implementation") {
         require(producerDecompiled._1 == 0, producerDecompiled._2)
+        require(producerBytecode._1 == 0, producerBytecode._2)
         val frontend = definition(producerDecompiled._2, "symbolInfoSummary")
         val implementation = definition(producerDecompiled._2, "symbolInfoSummaryImpl")
-        require(implementation.contains("private[this] def symbolInfoSummaryImpl"),
-          s"macro implementation is not private: $implementation")
+        val implementationBytecode = producerBytecode._2.split("\\R").find(_.contains(" symbolInfoSummaryImpl("))
+          .getOrElse(throw new IllegalArgumentException(s"classfile lacks macro implementation: ${producerBytecode._2}"))
+        require(implementationBytecode.trim.startsWith("private "),
+          s"macro implementation is not private in the classfile API: $implementationBytecode")
         val implementationStart = producerDecompiled._2.indexOf(implementation)
         val implementationEnd = producerDecompiled._2.indexOf("final def inline$symbolInfoSummaryImpl", implementationStart)
         require(implementationEnd > implementationStart, "unable to delimit private macro implementation body")
@@ -139,7 +145,7 @@ object MacroApi:
       val downstreamCp = libraries :+ positive.classes.getAbsolutePath
       IO.write(work / "downstream-classpath.txt", downstreamCp.mkString("\n") + "\n")
       val downstreamSource = """package downstream
-import m3a.MacroApi
+import m3.MacroApi
 
 val observed: String = MacroApi.symbolInfoSummary[List[Int]]
 """
@@ -156,7 +162,6 @@ val observed: String = MacroApi.symbolInfoSummary[List[Int]]
       }
 
       if (downstream.exit == 0) {
-        val javap = new File(sys.props("java.home"), "bin/javap").getAbsolutePath
         val bytecode = runExecutable(root,
           Seq(javap, "-classpath", downstream.classes.getAbsolutePath, "-c", "-p", "downstream.Consumer$package$"))
         IO.write(work / "downstream" / "javap.log", bytecode._2)
@@ -167,7 +172,7 @@ val observed: String = MacroApi.symbolInfoSummary[List[Int]]
       }
     }
 
-    val inlineOwnerSource = """package m3a
+    val inlineOwnerSource = """package m3
 import scala.annotation.experimental
 import io.github.dmytromitin.allowexperimental.allowExperimental
 
@@ -182,18 +187,26 @@ import io.github.dmytromitin.allowexperimental.allowExperimental
       require(!inlineOwner.args.contains("-experimental"), "inline-owner control used global -experimental")
     }
 
-    val serializedProducerSource = """package serialized
+    val serializedInlineAuthority =
+      if (scalaVersion == "3.3.8") "@experimental " else ""
+    val serializedProducerSource = s"""package serialized
 import scala.annotation.experimental
 
 @experimental def provider(): Int = 1
-inline def unsafe(): Int = provider()
+${serializedInlineAuthority}inline def unsafe(): Int = provider()
 """
+    val serializedUsesGlobalFlag = scalaVersion != "3.3.8"
+    val serializedFlags = Seq("-color:never") ++ (if (serializedUsesGlobalFlag) Seq("-experimental") else Nil)
+    IO.write(work / "serialized-inline-authority.txt",
+      if (serializedUsesGlobalFlag) "global-experimental-flag=yes; reason=negative-only producer authority\n"
+      else "global-experimental-flag=no; reason=Scala 3.3.8 has no -experimental flag; unsafe is explicitly @experimental\n")
     val serializedProducer = compile("serialized-inline-producer",
       Seq("Serialized.scala" -> serializedProducerSource), libraries, usePlugin = false,
-      flags = Seq("-color:never", "-experimental"))
-    check("negative-only serialized inline producer manufactured with global flag") {
+      flags = serializedFlags)
+    check("negative-only serialized inline producer manufactured with Scala authority") {
       require(serializedProducer.exit == 0, serializedProducer.output)
-      require(serializedProducer.args.contains("-experimental"), "negative serialized producer lacks global flag")
+      require(serializedProducer.args.contains("-experimental") == serializedUsesGlobalFlag,
+        s"wrong global-flag state for negative serialized producer: ${serializedProducer.args}")
       require(!serializedProducer.args.exists(_.startsWith("-Xplugin:")), "negative serialized producer used Allow Experimental")
     }
     if (serializedProducer.exit == 0) {
@@ -205,7 +218,11 @@ val observed: Int = serialized.unsafe()
         usePlugin = false, flags = Seq("-color:never"))
       check("direct serialized experimental inline-body reference rejected downstream") {
         require(serializedConsumer.exit != 0, "serialized inline experimental reference unexpectedly compiled downstream")
-        require(serializedConsumer.output.contains("method unsafe is marked @experimental: Added by -experimental"),
+        val serializedDiagnostic =
+          if (scalaVersion == "3.3.8")
+            "method unsafe is marked @experimental and therefore may only be used in an experimental scope."
+          else "method unsafe is marked @experimental: Added by -experimental"
+        require(serializedConsumer.output.contains(serializedDiagnostic),
           s"missing exact serialized-inline downstream diagnostic: ${serializedConsumer.output}")
         require(!serializedConsumer.args.contains("-experimental"), "serialized downstream used global -experimental")
         require(!serializedConsumer.args.exists(_.startsWith("-Xplugin:")), "serialized downstream used Allow Experimental")
