@@ -8,6 +8,7 @@ lazy val verifyM0 = taskKey[Unit]("Run the retained M0 matrix on the active exac
 lazy val verifyM1 = taskKey[Unit]("Run the M1 implementation-body matrix on the active exact Scala lane")
 lazy val verifyM3 = taskKey[Unit]("Run the real Symbol.info macro boundary matrix on the active exact Scala lane")
 lazy val verifyM4A = taskKey[Unit]("Run the generic second-plugin coexistence gate on exact Scala 3.9.0")
+lazy val verifyM4B = taskKey[Unit]("Run real Macro-Paradise coexistence on exact Scala 3.9.0")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -76,6 +77,14 @@ lazy val root = project
       streams.value.log
     ),
     verifyM4A := M4AVerifier.verify(
+      baseDirectory.value,
+      scalaVersion.value,
+      (annotation / Compile / packageBin).value,
+      (plugin / Compile / packageBin).value,
+      (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM4B := M4BVerifier.verify(
       baseDirectory.value,
       scalaVersion.value,
       (annotation / Compile / packageBin).value,

@@ -149,15 +149,58 @@ sbt -batch '++3.9.0' verifyM4A
 
 This qualification is limited to ordinary Scala 3.9.0 standard plugins and the
 tested phase-plan API. It is not a Scala 3.8.4/3.3.8 coexistence claim, a claim
-about research-plugin phase-plan replacement, exception/cancellation safety, or
-real Macro-Paradise coexistence. M4 is not complete and publication remains
-unauthorized.
+about research-plugin phase-plan replacement, or exception/cancellation safety.
+The separate M4B gate below tests one pinned real Macro-Paradise boundary. M4 is
+not complete and publication remains unauthorized.
+
+## Exact Scala 3.9.0 real Macro-Paradise coexistence
+
+The retained `verifyM4B` gate uses an independent no-hardlink disposable clone
+of Macro-Paradise commit
+`d773332c29efce90b3af343d34ae5450a93f6d93`. It source-builds only that
+commit's exact-3.9.0 plugin and experimental handler API with JDK 25 and sbt
+1.12.15, without `publishLocal`, vendoring, a submodule, or modification of the
+peer checkout.
+
+The pinned plugin is a normal `StandardPlugin` named `macroparadise`. Its one
+phase, `paradiseGen`, is actually installed after `parser` and before `typer` in
+both plugin loading orders. It is therefore well before
+`allowExperimentalCheckReferences` and the protected provider-neutralization
+interval. A task-owned external marker and precompiled handler use the pinned
+public `paradise3.api.expander` and `ParadiseAnnotationExpander` contracts to
+generate `GenUser.generatedHello`; the generated member and a real
+`@allowExperimental` implementation are typechecked in the same compiler
+invocation with both plugins installed.
+
+Both loading orders have the same supported result. Provider TASTy remains
+genuinely experimental, the allowed and ordinary APIs remain non-experimental,
+the Allow marker is absent, and an ordinary separate downstream compilation
+needs neither compiler plugin, either handler/marker artifact, the
+Macro-Paradise API, nor the Allow marker artifact. Negative controls prove that
+Macro-Paradise grants no experimental permission, an inert Allow marker grants
+none without its plugin, and permission does not leak to an unannotated
+same-unit sibling or a separately compiled later unit in either loading order.
+Retained P1/P2 observers still trigger M4A's fail-closed guard before provider
+mutation even when Macro-Paradise is present.
+
+Run the fresh pinned-peer build plus exact-3.9.0 M0/M1/M3/M4A/M4B gate with:
+
+```text
+bash scripts/verify-m4b-macroparadise.sh
+```
+
+This is bounded evidence for one unreleased pinned Macro-Paradise commit on
+exact Scala 3.9.0, pending controller review. It is not cross-lane M4C evidence,
+a compatibility interval, general multi-plugin transparency, or release
+authorization. Routine three-lane core verification intentionally does not
+build the peer.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
-parity, exception-proof restoration, multi-plugin coexistence, incremental or
-repeated-run qualification, IDE/BSP support, or Quasiquotes integration.
+parity, exception-proof restoration, general multi-plugin coexistence,
+incremental or repeated-run qualification, IDE/BSP support, or Quasiquotes
+integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise
