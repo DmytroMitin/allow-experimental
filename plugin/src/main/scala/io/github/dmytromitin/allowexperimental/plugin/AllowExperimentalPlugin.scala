@@ -25,6 +25,7 @@ private[plugin] object AllowExperimentalPluginEntrypoint:
   val UnsupportedOptionsMessage: String = "allow-experimental M0 accepts no plugin options"
 
   def phases(): List[PluginPhase] =
+    ExactCompilerVersion.validate()
     val state = CompilationState()
     List(CaptureAllowedOwners(state), CheckAllowedReferences(state), RestoreExperimentalProviders(state))
 

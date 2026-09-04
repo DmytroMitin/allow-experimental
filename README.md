@@ -231,12 +231,53 @@ sensitive-window protection remains **unqualified** on 3.3.8 and 3.8.4 and
 retains the exact-3.9.0 fail-closed result. M4C and M4 remain subject to
 controller review; publication remains unauthorized.
 
+## Exact Scala 3.9.0 repeated-run and Zinc lifecycle evidence
+
+The retained M5A gate separates two lifecycle boundaries. Its one-process
+harness uses one Scala 3.9.0 `ContextBase`, one `Compiler`, and one cached Allow
+Experimental plugin instance for eight ordered `Compiler.newRun` compilations.
+Every logical run receives a fresh reporter, `Run`, plugin phase trio, and
+`CompilationState`. Alternating allowed, rejected, repaired, sibling-negative,
+reported-error, recovery, and final direct-negative cases reuse the same
+package and symbol names. No permission, selected body reference, provider
+mutation, or reporter error leaks into a later run, and successful TASTy keeps
+the provider experimental while the ordinary APIs remain marker-free.
+
+The distinct generated sbt 1.11.7 / Zinc 1.11.0 fixture uses provider,
+allowed, and ordinary consumer subprojects on exact Scala 3.9.0. After its one
+clean baseline, every provider/permission/sibling transition runs without
+`clean` over persisted Zinc analysis. An ordinary provider becoming
+`@experimental` invalidates and rejects the unchanged unmarked dependent;
+adding permission recovers, removing it rejects, a second repair recovers,
+sibling isolation rejects and recovers, and provider toggles in both directions
+are observed. A no-source-change compile is a real no-op. The final consumer
+boundary is proved by a distinct downstream compiled for the first time after
+the final supported provider/allowed state; it needs neither Allow compiler
+plugin nor marker artifact.
+
+Plugin absence remains fail closed. A 3.8.4 plugin artifact presented to the
+3.9.0 compiler is rejected by a generated exact-build-version guard before it
+can grant permission. A 3.8.4 marker artifact loaded with the exact 3.9.0
+plugin worked in this bounded fixture, but that observation does not establish
+or advertise marker binary compatibility and does not lock publication policy.
+
+Run the complete M5A gate, including all three core lanes and retained M4
+coexistence regressions without rebuilding read-only peers, with:
+
+```text
+bash scripts/verify-m5a.sh
+```
+
+This is exact-3.9.0 batch lifecycle evidence pending controller review. It does
+not prove persistent sbt server, BSP, IDE, cancellation, unhandled-exception,
+best-effort-TASTy, or older-lane lifecycle behavior; it does not start M5B or
+M5C and does not authorize publication.
+
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
 parity, exception-proof restoration, general multi-plugin coexistence,
-incremental or repeated-run qualification, IDE/BSP support, or Quasiquotes
-integration.
+persistent IDE/BSP support, or Quasiquotes integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise

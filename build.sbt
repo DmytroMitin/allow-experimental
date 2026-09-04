@@ -10,6 +10,8 @@ lazy val verifyM3 = taskKey[Unit]("Run the real Symbol.info macro boundary matri
 lazy val verifyM4A = taskKey[Unit]("Run the generic second-plugin coexistence gate on exact Scala 3.9.0")
 lazy val verifyM4B = taskKey[Unit]("Run real Macro-Paradise coexistence on exact Scala 3.9.0")
 lazy val verifyM4C = taskKey[Unit]("Run real Macro-Paradise coexistence on exact Scala 3.3.8 or 3.8.4")
+lazy val verifyM5ASameJvm = taskKey[Unit]("Run the exact Scala 3.9.0 same-JVM repeated-run lifecycle gate")
+lazy val verifyM5A = taskKey[Unit]("Verify the complete exact Scala 3.9.0 M5A lifecycle evidence")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -34,6 +36,26 @@ lazy val plugin = project
   .settings(laneSettings)
   .settings(
     name := "allow-experimental-plugin",
+    Compile / sourceGenerators += Def.task {
+      val output = (Compile / sourceManaged).value / "io" / "github" / "dmytromitin" /
+        "allowexperimental" / "plugin" / "ExactCompilerVersion.scala"
+      val expected = scalaVersion.value
+      IO.write(output,
+        s"""package io.github.dmytromitin.allowexperimental.plugin
+
+import dotty.tools.dotc.config.Properties
+
+private[plugin] object ExactCompilerVersion:
+  private val Expected = "$expected"
+
+  def validate(): Unit =
+    require(
+      Properties.versionNumberString == Expected,
+      s"allow-experimental plugin built for exact Scala $$Expected cannot run on Scala $${Properties.versionNumberString}"
+    )
+""")
+      Seq(output)
+    }.taskValue,
     Compile / unmanagedSourceDirectories += {
       val adapter = scalaVersion.value match {
         case "3.3.8" => "scala-3.3.8"
@@ -94,6 +116,22 @@ lazy val root = project
       streams.value.log
     ),
     verifyM4C := M4CVerifier.verify(
+      baseDirectory.value,
+      scalaVersion.value,
+      (annotation / Compile / packageBin).value,
+      (plugin / Compile / packageBin).value,
+      (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM5ASameJvm := M5AVerifier.verifySameJvm(
+      baseDirectory.value,
+      scalaVersion.value,
+      (annotation / Compile / packageBin).value,
+      (plugin / Compile / packageBin).value,
+      (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM5A := M5AVerifier.verifyFinal(
       baseDirectory.value,
       scalaVersion.value,
       (annotation / Compile / packageBin).value,
