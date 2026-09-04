@@ -8,6 +8,7 @@ import scala.sys.process.{Process, ProcessLogger}
 
 object M5AVerifier {
   private val RequiredVersion = "3.9.0"
+  private val OlderVersions = Set("3.3.8", "3.8.4")
   private val ExperimentalDiagnostic = "marked @experimental"
 
   private final case class Compilation(exit: Int, output: String)
@@ -63,7 +64,33 @@ class Broken extends Required
       log: Logger
   ): Unit = {
     requireExactLane(scalaVersion, annotationJar, pluginJar, compilerClasspath)
-    val work = VerificationLane.workDirectory(root, scalaVersion, "m5a")
+    verifySameJvmForLane(root, scalaVersion, annotationJar, pluginJar, compilerClasspath, "m5a", log)
+  }
+
+  def verifySameJvmOlder(
+      root: File,
+      scalaVersion: String,
+      annotationJar: File,
+      pluginJar: File,
+      compilerClasspath: Seq[File],
+      log: Logger
+  ): Unit = {
+    require(OlderVersions(scalaVersion),
+      s"M5B same-JVM lifecycle is qualified only on exact Scala 3.3.8 or 3.8.4, not $scalaVersion")
+    VerificationLane.validateInputs(scalaVersion, annotationJar, pluginJar, compilerClasspath)
+    verifySameJvmForLane(root, scalaVersion, annotationJar, pluginJar, compilerClasspath, "m5b", log)
+  }
+
+  private def verifySameJvmForLane(
+      root: File,
+      scalaVersion: String,
+      annotationJar: File,
+      pluginJar: File,
+      compilerClasspath: Seq[File],
+      gate: String,
+      log: Logger
+  ): Unit = {
+    val work = VerificationLane.workDirectory(root, scalaVersion, gate)
     IO.delete(work)
     IO.createDirectory(work)
     VerificationLane.recordInputs(work, scalaVersion, annotationJar, pluginJar, compilerClasspath)
@@ -75,7 +102,7 @@ class Broken extends Required
     require(libraries.size == 2, s"expected exact Scala runtime libraries: $libraries")
     val sourceCp = (libraries :+ annotationJar.getCanonicalFile).map(_.getAbsolutePath)
 
-    val observerJar = buildObserver(root, work, compilerCp.map(_.getAbsolutePath))
+    val observerJar = buildObserver(root, work, scalaVersion, compilerCp.map(_.getAbsolutePath))
     writeRunSources(work)
     val harnessClasses = compileHarness(root, work, compilerCp.map(_.getAbsolutePath))
     val harnessCp = (Seq(harnessClasses) ++ compilerCp).map(_.getAbsolutePath)
@@ -132,9 +159,10 @@ class Broken extends Required
       }
     }
 
-    writeCompilerSourceAudit(work, compilerCp, pluginJar)
+    writeCompilerSourceAudit(work, scalaVersion, compilerCp, pluginJar)
+    val versionKey = "SCALA_" + scalaVersion.replace('.', '_')
     IO.write(work / "same-jvm-summary.txt", Seq(
-      "SCALA_3_9_0=PASS",
+      s"$versionKey=PASS",
       "SAME_JVM_REPEATED_RUNS=PASS",
       "SAME_JVM_SUPPORTED_REUSE_TOPOLOGY=ONE_CONTEXT_BASE_ONE_COMPILER_ONE_PLUGIN_FRESH_RUN_PHASE_STATE_REPORTER",
       "SAME_JVM_SUCCESS_FAILURE_RECOVERY=PASS",
@@ -145,7 +173,7 @@ class Broken extends Required
       "RUN_COUNT=8",
       "GLOBAL_EXPERIMENTAL_REQUIRED=NO"
     ).mkString("", "\n", "\n"))
-    log.info("M5A SAME-JVM PASS 8/8 one ContextBase/compiler/plugin with fresh runs, phases/state and reporters")
+    log.info(s"${gate.toUpperCase} SAME-JVM PASS [$scalaVersion] 8/8 one ContextBase/compiler/plugin with fresh runs, phases/state and reporters")
   }
 
   def verifyFinal(
@@ -377,26 +405,55 @@ class Broken extends Required
     classes
   }
 
-  private def buildObserver(root: File, work: File, compilerCp: Seq[String]): File = {
+  private def buildObserver(root: File, work: File, scalaVersion: String,
+      compilerCp: Seq[String]): File = {
     val observerRoot = root / "m4a-observer"
     val source = observerRoot / "src" / "main" / "scala" / "io" / "github" / "dmytromitin" /
       "allowexperimental" / "m4aobserver" / "M4AObserverPlugin.scala"
     val descriptor = observerRoot / "src" / "main" / "resources" / "plugin.properties"
     require(source.isFile && descriptor.isFile, "missing retained M4A observer source or descriptor")
+    val observerSource =
+      if (scalaVersion != "3.3.8") source
+      else {
+        val generated = work / "observer-plugin" / "M5BObserverPlugin338.scala"
+        val adapted = IO.read(source)
+          .replace(
+            "override def initialize(options: List[String])(using Context): List[PluginPhase] =",
+            "override def init(options: List[String]): List[PluginPhase] ="
+          )
+          .replace(
+            "def parse(options: List[String])(using Context): ObserverConfig =",
+            "def parse(options: List[String]): ObserverConfig ="
+          )
+          .replace(
+            "report.error(s\"m4a-observer unknown probe: $other\")\n        Nil",
+            "throw new IllegalArgumentException(s\"m4a-observer unknown probe: $other\")"
+          )
+          .replace(
+            "report.error(s\"m4a-observer malformed option: $option\")\n          \"\" -> \"\"",
+            "throw new IllegalArgumentException(s\"m4a-observer malformed option: $option\")"
+          )
+          .replace(
+            "report.error(s\"m4a-observer missing option: $key\")\n          \"\"",
+            "throw new IllegalArgumentException(s\"m4a-observer missing option: $key\")"
+          )
+        IO.write(generated, adapted)
+        generated
+      }
     val classes = work / "observer-plugin" / "classes"
     IO.createDirectory(classes)
     val args = Seq(
       "-classpath", compilerCp.mkString(File.pathSeparator),
       "-d", classes.getAbsolutePath,
       "-color:never",
-      source.getAbsolutePath
+      observerSource.getAbsolutePath
     )
     val compiled = runJava(root, compilerCp, "dotty.tools.dotc.Main", args)
     IO.write(work / "observer-plugin" / "compiler-arguments.txt", args.mkString("", "\n", "\n"))
     IO.write(work / "observer-plugin" / "compiler.log", compiled.output)
     require(compiled.exit == 0, s"M5A observer plugin did not compile: ${compiled.output}")
     IO.copyFile(descriptor, classes / "plugin.properties")
-    val jar = work / "observer-plugin" / "m5a-observer_3-3.9.0.jar"
+    val jar = work / "observer-plugin" / s"m5-lifecycle-observer_3-$scalaVersion.jar"
     IO.zip(Path.allSubpaths(classes).toSeq, jar, Some(0L))
     jar
   }
@@ -417,10 +474,12 @@ class Broken extends Required
     require(!ordinary.contains("experimental") && !ordinary.contains("allowExperimental"), ordinary)
   }
 
-  private def writeCompilerSourceAudit(work: File, compilerCp: Seq[File], pluginJar: File): Unit = {
-    val compiler = compilerCp.find(_.getName == "scala3-compiler_3-3.9.0.jar").getOrElse(
-      throw new IllegalArgumentException("missing exact Scala 3.9.0 compiler jar"))
-    val sources = new File(compiler.getParentFile, "scala3-compiler_3-3.9.0-sources.jar")
+  private def writeCompilerSourceAudit(work: File, scalaVersion: String,
+      compilerCp: Seq[File], pluginJar: File): Unit = {
+    val compilerName = s"scala3-compiler_3-$scalaVersion.jar"
+    val compiler = compilerCp.find(_.getName == compilerName).getOrElse(
+      throw new IllegalArgumentException(s"missing exact Scala $scalaVersion compiler jar"))
+    val sources = new File(compiler.getParentFile, s"scala3-compiler_3-$scalaVersion-sources.jar")
     require(sources.isFile, s"missing exact compiler sources: $sources")
     IO.write(work / "compiler-source-audit.txt", Seq(
       s"compilerJar=${compiler.getCanonicalPath}",
@@ -432,7 +491,7 @@ class Broken extends Required
       "driverProcessTopology=fresh ContextBase and Compiler per process call",
       "supportedHarnessTopology=one ContextBase plus one Compiler plus repeated Compiler.newRun",
       "pluginLifetime=ContextBase caches one StandardPlugin instance",
-      "phaseStateLifetime=addPluginPhases invokes initialize per run; Allow phases() allocates one fresh CompilationState and phase trio",
+      s"phaseStateLifetime=addPluginPhases invokes ${if (scalaVersion == "3.3.8") "init" else "initialize"} per run; Allow phases() allocates one fresh CompilationState and phase trio",
       "reporterLifetime=fresh StoreReporter per logical run",
       "contextReset=Compiler.newRun calls ContextBase.reset before allocating Run",
       "phaseReset=each Run calls addPluginPhases and usePhases with newly initialized plugin phases"

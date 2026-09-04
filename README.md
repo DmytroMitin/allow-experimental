@@ -268,10 +268,47 @@ coexistence regressions without rebuilding read-only peers, with:
 bash scripts/verify-m5a.sh
 ```
 
-This is exact-3.9.0 batch lifecycle evidence pending controller review. It does
+This is the controller-accepted bounded exact-3.9.0 lifecycle result. It does
 not prove persistent sbt server, BSP, IDE, cancellation, unhandled-exception,
-best-effort-TASTy, or older-lane lifecycle behavior; it does not start M5B or
-M5C and does not authorize publication.
+or best-effort-TASTy behavior and does not authorize publication.
+
+## Exact Scala 3.3.8 and 3.8.4 lifecycle hardening evidence
+
+The M5B verifier independently repeats both lifecycle mechanisms on exact Scala
+3.3.8 and 3.8.4. Exact compiler source audits support the same strongest
+same-JVM topology on both lanes: one `ContextBase`, one `Compiler`, and one
+cached Allow plugin instance across eight fresh `Compiler.newRun` values, with
+fresh reporters, phase trios, `CompilationState` values, and checker-local body
+maps. Scala 3.3.8 uses only a verifier-private observer adaptation for its
+legacy `StandardPlugin.init` entrypoint. The shared semantic plugin source and
+all three exact product adapters are unchanged.
+
+Separate sbt 1.11.7 / Zinc 1.11.0 fixtures repeat the full non-clean transition
+sequence on each older lane in isolated roots. Each bridge source shows that a
+compile invocation constructs a fresh bridge driver, context base, and
+compiler; these are persisted-analysis and output proofs, not compiler-instance
+reuse proofs. Both lanes invalidate the unchanged unmarked dependent when only
+the provider becomes `@experimental`, recover and reject truthfully across
+permission/sibling/provider edits, observe a real no-op, and first compile a
+plugin-free and marker-free downstream after the final supported state.
+
+Wrong-lane plugins never grant permission. The 3.8.4 compiler reaches the
+generated exact-version guard for both 3.9.0 and 3.3.8 plugin artifacts. The
+3.3.8 compiler rejects the 3.8.4 plugin earlier with a plugin-load linkage
+failure. These fail-closed mechanisms do not imply compiler-plugin binary
+compatibility. The retained 3.8.4-marker/3.9.0-plugin observation still does
+not establish marker compatibility.
+
+Run the complete cross-lane lifecycle and retained regression gate, without
+building read-only peers, with:
+
+```text
+bash scripts/verify-m5b.sh
+```
+
+This M5B implementation evidence is pending controller review. It does not
+prove a persistent sbt server, BSP, IDE, cancellation, unhandled exceptions,
+or best-effort TASTy; it does not start M5C and does not authorize publication.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and

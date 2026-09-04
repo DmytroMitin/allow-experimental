@@ -12,6 +12,8 @@ lazy val verifyM4B = taskKey[Unit]("Run real Macro-Paradise coexistence on exact
 lazy val verifyM4C = taskKey[Unit]("Run real Macro-Paradise coexistence on exact Scala 3.3.8 or 3.8.4")
 lazy val verifyM5ASameJvm = taskKey[Unit]("Run the exact Scala 3.9.0 same-JVM repeated-run lifecycle gate")
 lazy val verifyM5A = taskKey[Unit]("Verify the complete exact Scala 3.9.0 M5A lifecycle evidence")
+lazy val verifyM5BSameJvm = taskKey[Unit]("Run the same-JVM repeated-run lifecycle gate on exact Scala 3.3.8 or 3.8.4")
+lazy val verifyM5B = taskKey[Unit]("Verify the complete exact Scala 3.3.8/3.8.4 M5B lifecycle evidence")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -137,6 +139,19 @@ lazy val root = project
       (annotation / Compile / packageBin).value,
       (plugin / Compile / packageBin).value,
       (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM5BSameJvm := M5AVerifier.verifySameJvmOlder(
+      baseDirectory.value,
+      scalaVersion.value,
+      (annotation / Compile / packageBin).value,
+      (plugin / Compile / packageBin).value,
+      (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM5B := M5BVerifier.verify(
+      baseDirectory.value,
+      scalaVersion.value,
       streams.value.log
     ),
     verifyM0 := M0Verifier.verify(
