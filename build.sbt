@@ -14,6 +14,7 @@ lazy val verifyM5ASameJvm = taskKey[Unit]("Run the exact Scala 3.9.0 same-JVM re
 lazy val verifyM5A = taskKey[Unit]("Verify the complete exact Scala 3.9.0 M5A lifecycle evidence")
 lazy val verifyM5BSameJvm = taskKey[Unit]("Run the same-JVM repeated-run lifecycle gate on exact Scala 3.3.8 or 3.8.4")
 lazy val verifyM5B = taskKey[Unit]("Verify the complete exact Scala 3.3.8/3.8.4 M5B lifecycle evidence")
+lazy val verifyM5C = taskKey[Unit]("Verify persistent sbt and real BSP lifecycle evidence on all exact Scala lanes")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -150,6 +151,11 @@ lazy val root = project
       streams.value.log
     ),
     verifyM5B := M5BVerifier.verify(
+      baseDirectory.value,
+      scalaVersion.value,
+      streams.value.log
+    ),
+    verifyM5C := M5CVerifier.verify(
       baseDirectory.value,
       scalaVersion.value,
       streams.value.log

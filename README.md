@@ -306,15 +306,44 @@ building read-only peers, with:
 bash scripts/verify-m5b.sh
 ```
 
-This M5B implementation evidence is pending controller review. It does not
-prove a persistent sbt server, BSP, IDE, cancellation, unhandled exceptions,
-or best-effort TASTy; it does not start M5C and does not authorize publication.
+This is the controller-accepted bounded M5B result. Persistent sbt and BSP build
+lifecycles are qualified separately below; M5B alone does not prove them.
+
+## Persistent sbt and BSP build lifecycle evidence
+
+The M5C gate qualifies two additional build surfaces independently on exact
+Scala **3.3.8**, **3.8.4**, and **3.9.0**. For each lane, one interactive sbt
+1.11.7 JVM survives the complete non-clean provider/permission/sibling
+fail-and-recover sequence over Zinc 1.11.0 state. A separate real sbt BSP
+server is initialized exactly once and receives nine `buildTarget/compile`
+requests with atomic source edits between requests. It survives expected stock
+`@experimental` diagnostics, compiles each repair without restart, observes a
+stable no-change request, first-compiles a fresh downstream without either
+Allow artifact, and shuts down through the BSP shutdown/exit lifecycle.
+
+The persistent sbt process may retain build, bridge, analysis, output, and
+classloader caches. Exact Scala bridge source shows that each actual compile
+still creates a fresh bridge driver, context, and compiler; this is not the
+same compiler-instance topology as M5A/M5B's separate `Compiler.newRun` proof.
+Final TASTy keeps the provider experimental while allowed, consumer, and fresh
+downstream APIs remain ordinary and marker-free.
+
+Run the complete retained M5A/M5B regression plus all three M5C lanes with:
+
+```text
+bash scripts/verify-m5c.sh
+```
+
+This is bounded sbt/BSP **build** evidence and an implementation recommendation
+for controller acceptance. It is not native IntelliJ editor typechecking,
+inspections, presentation-compiler/editor semantics, cancellation or unhandled
+exception recovery, a compatibility interval, or release authorization.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
 parity, exception-proof restoration, general multi-plugin coexistence,
-persistent IDE/BSP support, or Quasiquotes integration.
+native IDE/editor support, or Quasiquotes integration.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise
