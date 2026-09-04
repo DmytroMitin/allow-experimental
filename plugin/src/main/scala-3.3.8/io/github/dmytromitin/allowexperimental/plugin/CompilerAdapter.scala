@@ -16,3 +16,4 @@ private[plugin] object CompilerAdapter:
   // best-effort TASTy compilation state on Context.
   def isExperimentalEnabledByImport(using Context): Boolean = false
   def restoreIsRunnable(using Context): Boolean = true
+  def enforceM4APhaseContract: Boolean = false

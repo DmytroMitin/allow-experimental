@@ -54,27 +54,29 @@ Scala 3.9.0 remains the default. To run one lane explicitly:
 ```text
 sbt -batch '++3.3.8' clean verifyLane verifyM0 verifyM1 verifyM3
 sbt -batch '++3.8.4' clean verifyLane verifyM0 verifyM1 verifyM3
-sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3
+sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4A
 ```
 
 `verifyM0`, `verifyM1`, and `verifyM3` use the active exact lane. `verifyLane` checks compiler
 identity, lane-built jar metadata, separate output roots, and rejection of
 wrong-lane inputs. Each lane runs the same 13 M0, 51 M1, and eight M3 checks
 plus five build-structure checks; expected failures assert the relevant
-diagnostics.
+diagnostics. `verifyM4A` is an exact-3.9.0-only gate.
 
 Each project's build state and artifacts live under `target/scala-<version>`;
 cleaning a lane leaves the other lane's outputs intact. Root fixture sources,
 commands and compiler/phase/decompiler logs live in
 `target/scala-<version>/m0-verification`, `m1-verification`, and
-`m3-verification`. The script retains per-lane summaries and preservation
-ledgers in `target/verification-logs`.
+`m3-verification`, with M4A evidence under the exact 3.9.0 root. The script
+retains per-lane summaries and preservation ledgers in
+`target/verification-logs`.
 
 Jar names and coordinates remain provisional. The current `_3` names do not
 make a plugin jar portable between compilers; verification uses the artifact
 built for that exact lane. The 3.3.8 compiler has a small private source adapter
 for its legacy plugin entrypoint and unavailable import/best-effort APIs; the
-semantic phases remain shared. A future plugin release should use an exact-version
+modern lanes also use exact-version adapters so the M4A guard is enabled only
+on 3.9.0. The semantic phase source remains shared. A future plugin release should use an exact-version
 distinction (such as full-cross coordinates), but publication remains skipped
 and the annotation artifact's eventual compatibility policy is undecided.
 
@@ -117,6 +119,39 @@ any downstream invocation.
 This is exact 3.3.8, 3.8.4, and 3.9.0 implementation evidence pending
 controller review, not a version interval, Quasiquotes integration, or a public
 macro API added to this product.
+
+## Exact Scala 3.9.0 generic second-plugin contract
+
+The retained `verifyM4A` gate builds a separate real standard compiler-plugin
+jar and probes both plugin loading orders. It demonstrates that the Scala 3.9.0
+scheduler can place a peer plugin phase before the selective checker, between
+that checker and `crossVersionChecks`, after the built-in transform group but
+before restoration, or after restoration.
+
+Allow Experimental therefore uses an explicit fail-closed phase contract on
+this exact lane; this is not transparent coexistence. When a supported provider
+would otherwise be temporarily neutralized, any foreign standard-plugin phase
+scheduled after `allowExperimentalCheckReferences` and before
+`allowExperimentalRestoreProviders` causes a truthful incompatibility error
+before provider mutation. Foreign phases before the checker or after restoration
+are not rejected by this sensitive-window guard; the retained read-only observer
+fixture coexists at both positions. The verifier proves both sensitive placements
+are blocked, a harmless after-restoration observer runs and inspects an ordinary
+definition, provider restoration survives the exercised reported-error path,
+and the ordinary downstream consumer still needs neither plugin nor marker
+artifact.
+
+Run the exact M4A gate with:
+
+```text
+sbt -batch '++3.9.0' verifyM4A
+```
+
+This qualification is limited to ordinary Scala 3.9.0 standard plugins and the
+tested phase-plan API. It is not a Scala 3.8.4/3.3.8 coexistence claim, a claim
+about research-plugin phase-plan replacement, exception/cancellation safety, or
+real Macro-Paradise coexistence. M4 is not complete and publication remains
+unauthorized.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and

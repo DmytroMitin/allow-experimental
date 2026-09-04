@@ -16,3 +16,4 @@ final class AllowExperimentalPlugin extends StandardPlugin:
 private[plugin] object CompilerAdapter:
   def isExperimentalEnabledByImport(using Context): Boolean = Feature.isExperimentalEnabledByImport
   def restoreIsRunnable(using Context): Boolean = !ctx.usedBestEffortTasty
+  def enforceM4APhaseContract: Boolean = false

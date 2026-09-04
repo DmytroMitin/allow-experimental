@@ -42,6 +42,10 @@ private object AllowExperimentalSemantics:
     "@allowExperimental M1 does not support nested inline definitions"
   val UnsupportedMetadataMessage =
     "@allowExperimental M1 does not support experimental annotation arguments"
+  val IncompatibleSensitiveWindowPhaseMessage =
+    "allow-experimental incompatible compiler-plugin phase inside the provider neutralization window"
+
+private trait AllowExperimentalOwnedPhase extends PluginPhase
 
 private final class CompilationState:
   val allowedOwners: mutable.LinkedHashSet[Symbol] = mutable.LinkedHashSet.empty
@@ -82,7 +86,7 @@ private final class CompilationState:
             pos
           )
 
-private final class CaptureAllowedOwners(state: CompilationState) extends PluginPhase:
+private final class CaptureAllowedOwners(state: CompilationState) extends AllowExperimentalOwnedPhase:
   override val phaseName: String = "allowExperimentalCaptureOwners"
   override val runsAfter: Set[String] = Set(PostTyper.name)
   override val runsBefore: Set[String] = Set(Pickler.name)
@@ -114,7 +118,7 @@ private final class CaptureAllowedOwners(state: CompilationState) extends Plugin
     capture(tree.symbol, tree.srcPos)
     tree
 
-private final class CheckAllowedReferences(state: CompilationState) extends PluginPhase:
+private final class CheckAllowedReferences(state: CompilationState) extends AllowExperimentalOwnedPhase:
   import tpd.*
 
   override val phaseName: String = "allowExperimentalCheckReferences"
@@ -238,21 +242,45 @@ private final class CheckAllowedReferences(state: CompilationState) extends Plug
             AllowExperimentalSemantics.UnsupportedOverrideMessage,
             state.providerPositions(provider)
           )
-      if !runCtx.reporter.hasErrors then
-        state.providerAnnotations.foreach: (provider, _) =>
-          provider.removeAnnotation(defn.ExperimentalAnnot)
-          if provider.hasAnnotation(defn.ExperimentalAnnot) then
+      if !runCtx.reporter.hasErrors && state.providerAnnotations.nonEmpty then
+        if CompilerAdapter.enforceM4APhaseContract then
+          val plan = Phases.unfusedPhases.toList
+          val checkIndex = plan.indexWhere(_ eq this)
+          val restoreIndex = plan.indexWhere(_.isInstanceOf[RestoreExperimentalProviders])
+          val invalidBoundary = checkIndex < 0 || restoreIndex <= checkIndex
+          if invalidBoundary then
             report.error(
-              s"allow-experimental internal invariant failed: ${provider.showLocated} remained experimental after neutralization",
-              provider.srcPos
+              "allow-experimental internal invariant failed: unable to locate the installed neutralization-window phase boundaries",
+              state.providerPositions.valuesIterator.next()
             )
           else
-            state.neutralizedProviders += provider
-            state.neutralizedAnnotations(provider) = provider.annotations
+            val incompatible = plan.slice(checkIndex + 1, restoreIndex).collect:
+              case phase: PluginPhase if !phase.isInstanceOf[AllowExperimentalOwnedPhase] => phase
+            if incompatible.nonEmpty then
+              val installed = plan.iterator.filter(_.exists).map: phase =>
+                val kind = if phase.isInstanceOf[PluginPhase] then "plugin" else "builtin"
+                s"${phase.phaseName}:$kind"
+              report.error(
+                s"${AllowExperimentalSemantics.IncompatibleSensitiveWindowPhaseMessage}: " +
+                  s"${incompatible.map(_.phaseName).mkString(", ")}; provider mutation has not started; " +
+                  s"installed phase plan=${installed.mkString(",")}",
+                state.providerPositions.valuesIterator.next()
+              )
+        if !runCtx.reporter.hasErrors then
+          state.providerAnnotations.foreach: (provider, _) =>
+            provider.removeAnnotation(defn.ExperimentalAnnot)
+            if provider.hasAnnotation(defn.ExperimentalAnnot) then
+              report.error(
+                s"allow-experimental internal invariant failed: ${provider.showLocated} remained experimental after neutralization",
+                provider.srcPos
+              )
+            else
+              state.neutralizedProviders += provider
+              state.neutralizedAnnotations(provider) = provider.annotations
     guardAndNeutralize(using runCtx.fresh.setPhase(this.start))
     checked
 
-private final class RestoreExperimentalProviders(state: CompilationState) extends PluginPhase:
+private final class RestoreExperimentalProviders(state: CompilationState) extends AllowExperimentalOwnedPhase:
   override val phaseName: String = "allowExperimentalRestoreProviders"
   override val runsAfter: Set[String] = Set(CrossVersionChecks.name)
 

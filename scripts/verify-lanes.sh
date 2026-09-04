@@ -16,7 +16,7 @@ qualified_lanes=()
 verify_preserved() {
   local earlier="$1"
   sha256sum --check "target/verification-logs/$earlier-preservation.sha256"
-  echo "ISOLATION PASS [$earlier] earlier-lane artifacts and representative M0/M1/M3 evidence preserved"
+  echo "ISOLATION PASS [$earlier] earlier-lane artifacts and representative qualified evidence preserved"
 }
 
 for lane in 3.3.8 3.8.4 3.9.0; do
@@ -24,7 +24,12 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     verify_preserved "$earlier"
   done
 
-  sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 \
+  gates=(clean verifyLane verifyM0 verifyM1 verifyM3)
+  if [[ "$lane" == "3.9.0" ]]; then
+    gates+=(verifyM4A)
+  fi
+
+  sbt -batch "++$lane" "${gates[@]}" \
     2>&1 | tee "target/verification-logs/$lane.log"
 
   for earlier in "${qualified_lanes[@]}"; do
@@ -42,6 +47,14 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     "target/scala-$lane/m3-verification/downstream/javap.log"
     "target/scala-$lane/m3-verification/serialized-inline-authority.txt"
   )
+  if [[ "$lane" == "3.9.0" ]]; then
+    evidence+=(
+      "target/scala-$lane/m4a-verification/summary.txt"
+      "target/scala-$lane/m4a-verification/harmless-positive/observer.log"
+      "target/scala-$lane/m4a-verification/allow-first-p1/compiler.log"
+      "target/scala-$lane/m4a-verification/observer-first-p2/compiler.log"
+    )
+  fi
   sha256sum "${evidence[@]}" > "target/verification-logs/$lane-preservation.sha256"
   verify_preserved "$lane"
   qualified_lanes+=("$lane")

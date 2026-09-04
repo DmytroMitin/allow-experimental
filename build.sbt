@@ -7,6 +7,7 @@ ThisBuild / publish / skip := true
 lazy val verifyM0 = taskKey[Unit]("Run the retained M0 matrix on the active exact Scala lane")
 lazy val verifyM1 = taskKey[Unit]("Run the M1 implementation-body matrix on the active exact Scala lane")
 lazy val verifyM3 = taskKey[Unit]("Run the real Symbol.info macro boundary matrix on the active exact Scala lane")
+lazy val verifyM4A = taskKey[Unit]("Run the generic second-plugin coexistence gate on exact Scala 3.9.0")
 lazy val verifyLane = taskKey[Unit]("Check exact compiler, artifact and output-lane identities")
 
 // Separate classes, Zinc analysis, streams, jars and fixtures by exact version.
@@ -34,7 +35,8 @@ lazy val plugin = project
     Compile / unmanagedSourceDirectories += {
       val adapter = scalaVersion.value match {
         case "3.3.8" => "scala-3.3.8"
-        case "3.8.4" | "3.9.0" => "scala-3.8.4-3.9.0"
+        case "3.8.4" => "scala-3.8.4"
+        case "3.9.0" => "scala-3.9.0"
         case other => sys.error(s"no compiler adapter for Scala $other")
       }
       baseDirectory.value / "src" / "main" / adapter
@@ -66,6 +68,14 @@ lazy val root = project
       streams.value.log
     ),
     verifyM3 := M3Verifier.verify(
+      baseDirectory.value,
+      scalaVersion.value,
+      (annotation / Compile / packageBin).value,
+      (plugin / Compile / packageBin).value,
+      (plugin / Compile / dependencyClasspath).value.map(_.data),
+      streams.value.log
+    ),
+    verifyM4A := M4AVerifier.verify(
       baseDirectory.value,
       scalaVersion.value,
       (annotation / Compile / packageBin).value,
