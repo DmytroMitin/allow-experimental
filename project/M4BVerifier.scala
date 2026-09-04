@@ -9,12 +9,49 @@ import sbt._
 import scala.collection.mutable.ArrayBuffer
 import scala.sys.process.{Process, ProcessLogger}
 
-/** Exact Scala 3.9.0 black-box coexistence proof against the pinned
+object M4BVerifier {
+  def verify(
+      root: File,
+      scalaVersion: String,
+      annotationJar: File,
+      allowPluginJar: File,
+      compilerClasspath: Seq[File],
+      log: Logger
+  ): Unit = {
+    require(scalaVersion == "3.9.0",
+      s"M4B is qualified only on exact Scala 3.9.0, not $scalaVersion")
+    M4RealMacroParadiseVerifier.verify(
+      root, scalaVersion, annotationJar, allowPluginJar, compilerClasspath,
+      gate = "m4b", requireM4AGuard = true, log
+    )
+  }
+}
+
+object M4CVerifier {
+  private val requiredVersions = Set("3.3.8", "3.8.4")
+
+  def verify(
+      root: File,
+      scalaVersion: String,
+      annotationJar: File,
+      allowPluginJar: File,
+      compilerClasspath: Seq[File],
+      log: Logger
+  ): Unit = {
+    require(requiredVersions(scalaVersion),
+      s"M4C is qualified only on exact Scala 3.3.8 and 3.8.4, not $scalaVersion")
+    M4RealMacroParadiseVerifier.verify(
+      root, scalaVersion, annotationJar, allowPluginJar, compilerClasspath,
+      gate = "m4c", requireM4AGuard = false, log
+    )
+  }
+}
+
+/** Shared exact-lane black-box coexistence proof against the pinned
   * Macro-Paradise source build. Generated peer/source artifacts stay below
   * ignored target roots; only this orchestration is product source.
   */
-object M4BVerifier {
-  private val requiredVersion = "3.9.0"
+private object M4RealMacroParadiseVerifier {
   private val pinnedPeer = "d773332c29efce90b3af343d34ae5450a93f6d93"
   private val scalaDiagnostic = "marked @experimental"
   private val guardDiagnostic =
@@ -76,12 +113,10 @@ object Fixture:
       annotationJar: File,
       allowPluginJar: File,
       compilerClasspath: Seq[File],
+      gate: String,
+      requireM4AGuard: Boolean,
       log: Logger
   ): Unit = {
-    require(
-      scalaVersion == requiredVersion,
-      s"M4B is qualified only on exact Scala $requiredVersion, not $scalaVersion"
-    )
     VerificationLane.validateInputs(
       scalaVersion,
       annotationJar,
@@ -89,16 +124,19 @@ object Fixture:
       compilerClasspath
     )
 
-    val peerRoot = root / "target" / "m4b-verification" / "macroparadise-disposable"
-    val macroApiJar = peerRoot / "plugin-api" / "target" / "scala-3.9.0" /
-      "macroparadise-scala3-plugin-api_3.9.0-0.1.1-SNAPSHOT.jar"
-    val macroPluginJar = peerRoot / "plugin" / "target" / "scala-3.9.0" /
-      "macroparadise-scala3-plugin_3.9.0-0.1.1-SNAPSHOT.jar"
+    val peerRoot =
+      if (scalaVersion == "3.9.0")
+        root / "target" / "m4b-verification" / "macroparadise-disposable"
+      else root / "target" / "m4c-verification" / s"macroparadise-$scalaVersion"
+    val macroApiJar = peerRoot / "plugin-api" / "target" / s"scala-$scalaVersion" /
+      s"macroparadise-scala3-plugin-api_$scalaVersion-0.1.1-SNAPSHOT.jar"
+    val macroPluginJar = peerRoot / "plugin" / "target" / s"scala-$scalaVersion" /
+      s"macroparadise-scala3-plugin_$scalaVersion-0.1.1-SNAPSHOT.jar"
     require(peerRoot.isDirectory, s"missing disposable Macro-Paradise clone: $peerRoot")
     require(git(peerRoot, Seq("rev-parse", "HEAD")).trim == pinnedPeer,
       s"disposable Macro-Paradise clone is not pinned to $pinnedPeer")
     require(git(peerRoot, Seq("status", "--porcelain=v1")).trim.isEmpty,
-      "disposable Macro-Paradise source checkout is dirty before M4B")
+      s"disposable Macro-Paradise source checkout is dirty before ${gate.toUpperCase}")
     require(macroApiJar.isFile, s"missing exact Macro-Paradise API jar: $macroApiJar")
     require(macroPluginJar.isFile, s"missing exact Macro-Paradise plugin jar: $macroPluginJar")
 
@@ -108,7 +146,7 @@ object Fixture:
     val originalPeerStatus = git(originalPeer, Seq("status", "--porcelain=v1"))
     val originalPeerDirty = originalPeerStatus.trim.nonEmpty
 
-    val work = VerificationLane.workDirectory(root, scalaVersion, "m4b")
+    val work = VerificationLane.workDirectory(root, scalaVersion, gate)
     IO.delete(work)
     IO.createDirectory(work)
     VerificationLane.recordInputs(
@@ -118,7 +156,7 @@ object Fixture:
       allowPluginJar,
       compilerClasspath
     )
-    log.info(s"M4B Scala $scalaVersion: ${work.getAbsolutePath}")
+    log.info(s"${gate.toUpperCase} Scala $scalaVersion: ${work.getAbsolutePath}")
 
     val compilerCp = compilerClasspath.map(_.getCanonicalFile).distinct
     val compilerCpStrings = compilerCp.map(_.getAbsolutePath)
@@ -132,11 +170,11 @@ object Fixture:
     def check(label: String)(body: => Unit): Unit =
       try {
         body
-        log.info(s"M4B PASS $label")
+        log.info(s"${gate.toUpperCase} PASS $label")
       } catch {
         case error: IllegalArgumentException =>
           failures += s"$label: ${error.getMessage}"
-          log.error(s"M4B FAIL $label: ${error.getMessage}")
+          log.error(s"${gate.toUpperCase} FAIL $label: ${error.getMessage}")
       }
 
     val markerClasses = compileSimple(
@@ -160,7 +198,7 @@ object Fixture:
     val handlerClasspath = (Seq(handlerJar, macroApiJar) ++ compilerCp).map(_.getCanonicalFile).distinct
     val externalIdentity = artifactIdentity(markerJar, handlerClasspath)
     val sourceCp = (libraries ++ Seq(annotationJar, markerJar)).map(_.getAbsolutePath)
-    val observerJar = buildObserver(root, work, compilerCpStrings)
+    val observerJar = buildObserver(root, work, scalaVersion, compilerCpStrings)
 
     IO.write(work / "peer-build.txt", Seq(
       s"peerCommit=$pinnedPeer",
@@ -389,27 +427,29 @@ val generatedValue: String = new m4b.GenUser().generatedHello
       require(allowAbsent.trace.contains(s"handler=$handlerName"), allowAbsent.trace)
     }
 
-    Seq("p1", "p2").zipWithIndex.foreach { case (probe, index) =>
-      val guard = compileFixture(
-        s"negative-m4a-guard-$probe",
-        positiveSource,
-        allowFirst = index == 0,
-        observerProbe = Some(probe)
-      )
-      check(s"M4A $probe guard remains load-bearing with Macro-Paradise present") {
-        require(guard.exit != 0, s"sensitive $probe fixture unexpectedly compiled")
-        require(guard.output.contains(guardDiagnostic), guard.output)
-        require(!guard.observer.contains(s"probe=${probe.toUpperCase}\n"), guard.observer)
-        require(observation(guard.observer, "P3_AUDIT", "providerHasExperimentalAnnotation") == "true", guard.observer)
-        require(observation(guard.observer, "P3_AUDIT", "providerIsExperimental") == "true", guard.observer)
-        require(guard.trace.contains(s"handler=$handlerName"), guard.trace)
-        assertPlan(guard.observer, Seq(
-          "paradiseGen:plugin",
-          "allowExperimentalCheckReferences:plugin",
-          s"m4aProbe${probe.toUpperCase}:plugin",
-          "allowExperimentalRestoreProviders:plugin",
-          "m4aProbeP3Audit:plugin"
-        ))
+    if (requireM4AGuard) {
+      Seq("p1", "p2").zipWithIndex.foreach { case (probe, index) =>
+        val guard = compileFixture(
+          s"negative-m4a-guard-$probe",
+          positiveSource,
+          allowFirst = index == 0,
+          observerProbe = Some(probe)
+        )
+        check(s"M4A $probe guard remains load-bearing with Macro-Paradise present") {
+          require(guard.exit != 0, s"sensitive $probe fixture unexpectedly compiled")
+          require(guard.output.contains(guardDiagnostic), guard.output)
+          require(!guard.observer.contains(s"probe=${probe.toUpperCase}\n"), guard.observer)
+          require(observation(guard.observer, "P3_AUDIT", "providerHasExperimentalAnnotation") == "true", guard.observer)
+          require(observation(guard.observer, "P3_AUDIT", "providerIsExperimental") == "true", guard.observer)
+          require(guard.trace.contains(s"handler=$handlerName"), guard.trace)
+          assertPlan(guard.observer, Seq(
+            "paradiseGen:plugin",
+            "allowExperimentalCheckReferences:plugin",
+            s"m4aProbe${probe.toUpperCase}:plugin",
+            "allowExperimentalRestoreProviders:plugin",
+            "m4aProbeP3Audit:plugin"
+          ))
+        }
       }
     }
 
@@ -422,8 +462,9 @@ val generatedValue: String = new m4b.GenUser().generatedHello
         s"peer status changed: before=$originalPeerStatus after=$finalPeerStatus")
     }
 
+    val laneDigits = scalaVersion.split('.').mkString
     IO.write(work / "source-hashes.txt", Seq(
-      s"MacroParadisePlugin390.scala=${sha256(peerRoot / "plugin" / "src" / "main" / "scala-3.9.0" / "macroparadise" / "MacroParadisePlugin390.scala")}",
+      s"MacroParadisePlugin$laneDigits.scala=${sha256(peerRoot / "plugin" / "src" / "main" / s"scala-$scalaVersion" / "macroparadise" / s"MacroParadisePlugin$laneDigits.scala")}",
       s"ExactCompilerLine.scala=${sha256(peerRoot / "plugin" / "src" / "main" / "scala" / "macroparadise" / "ExactCompilerLine.scala")}",
       s"MacroParadisePlugin.scala=${sha256(peerRoot / "plugin" / "src" / "main" / "scala" / "macroparadise" / "MacroParadisePlugin.scala")}",
       s"ParadiseAnnotationExpander.scala=${sha256(peerRoot / "plugin-api" / "src" / "main" / "scala" / "paradise3" / "api" / "ParadiseAnnotationExpander.scala")}",
@@ -433,15 +474,15 @@ val generatedValue: String = new m4b.GenUser().generatedHello
 
     if (failures.nonEmpty) {
       IO.write(work / "summary.txt", (Seq(
-        "PROMPT_009_M4B=FAIL",
-        "SCALA_3_9_0=FAIL",
+        s"${if (gate == "m4b") "PROMPT_009_M4B" else "PROMPT_011_M4C"}=FAIL",
+        s"SCALA_${scalaVersion.replace('.', '_')}=FAIL",
         s"MACROPARADISE_PIN=$pinnedPeer",
         s"FAILURE_COUNT=${failures.size}"
       ) ++ failures.zipWithIndex.map { case (failure, index) =>
         s"FAILURE_${index + 1}=${failure.replace('\n', ' ')}"
       }).mkString("", "\n", "\n"))
       require(requirement = false, failures.mkString("\n"))
-    } else {
+    } else if (gate == "m4b") {
       IO.write(work / "summary.txt", Seq(
         "PROMPT_009_M4B=PASS",
         "PROMPT_010_RECOVERY=PASS",
@@ -482,6 +523,36 @@ val generatedValue: String = new m4b.GenUser().generatedHello
         "REAL_MACROPARADISE_COEXISTENCE_3_9_0=COMPATIBLE_PASS",
         "M4B_CONTROLLER_RECOMMENDATION=ACCEPT_WITH_QUALIFICATIONS",
         "M4_COMPLETE=NO",
+        "PEER_REPOSITORIES_MODIFIED=NO",
+        "RELEASE_AUTHORIZED=NO"
+      ).mkString("", "\n", "\n"))
+    } else {
+      IO.write(work / "summary.txt", Seq(
+        "PROMPT_011_M4C=PASS",
+        s"SCALA_${scalaVersion.replace('.', '_')}_M4C=PASS",
+        s"MACROPARADISE_PINNED_SHA=$pinnedPeer",
+        "PINNED_PEER_BYTES_FROM_DIRTY_WORKTREE=NO",
+        "PINNED_COMMIT_MATERIALIZED_INDEPENDENTLY=YES",
+        "PEER_CHECKOUT_MUTATED=NO",
+        "MACROPARADISE_STANDARD_PLUGIN=YES",
+        "MACROPARADISE_REAL_TRANSFORMATION=PASS",
+        "MACROPARADISE_PHASE_PLAN_RECORDED=YES",
+        "MACROPARADISE_PHASES_OUTSIDE_SENSITIVE_WINDOW=YES",
+        "PLUGIN_LOAD_ORDER_ALLOW_FIRST=PASS",
+        "PLUGIN_LOAD_ORDER_PARADISE_FIRST=PASS",
+        "ALLOW_PERMISSION_WITH_MACROPARADISE=PASS",
+        "PROVIDER_STILL_EXPERIMENTAL=YES",
+        "ALLOW_MARKER_TASTY_LEAK=NO",
+        "CONSUMER_EXPERIMENTAL_LEAK=NO",
+        "DOWNSTREAM_WITHOUT_COMPILER_PLUGINS=PASS",
+        s"DOWNSTREAM_MACRO_MARKER_API_REQUIREMENT=$downstreamRequirement",
+        "MACROPARADISE_DOES_NOT_GRANT_EXPERIMENTAL=PASS",
+        "ALLOW_ABSENT_FAILS_CLOSED_WITH_MACROPARADISE=PASS",
+        "SIBLING_ISOLATION=PASS",
+        "LATER_UNIT_ISOLATION=PASS",
+        "GLOBAL_EXPERIMENTAL_REQUIRED=NO",
+        "GENERIC_SENSITIVE_WINDOW_PROTECTION=UNQUALIFIED",
+        s"REAL_MACROPARADISE_COEXISTENCE_${scalaVersion.replace('.', '_')}=COMPATIBLE_PASS",
         "PEER_REPOSITORIES_MODIFIED=NO",
         "RELEASE_AUTHORIZED=NO"
       ).mkString("", "\n", "\n"))
@@ -544,25 +615,54 @@ val generatedValue: String = new m4b.GenUser().generatedHello
     jar
   }
 
-  private def buildObserver(root: File, work: File, compilerCp: Seq[String]): File = {
+  private def buildObserver(root: File, work: File, scalaVersion: String,
+      compilerCp: Seq[String]): File = {
     val observerRoot = root / "m4a-observer"
     val source = observerRoot / "src" / "main" / "scala" / "io" / "github" /
       "dmytromitin" / "allowexperimental" / "m4aobserver" / "M4AObserverPlugin.scala"
     val descriptor = observerRoot / "src" / "main" / "resources" / "plugin.properties"
+    val observerSource =
+      if (scalaVersion != "3.3.8") source
+      else {
+        val generated = work / "observer-plugin" / "M4AObserverPlugin338.scala"
+        val adapted = IO.read(source)
+          .replace(
+            "override def initialize(options: List[String])(using Context): List[PluginPhase] =",
+            "override def init(options: List[String]): List[PluginPhase] ="
+          )
+          .replace(
+            "def parse(options: List[String])(using Context): ObserverConfig =",
+            "def parse(options: List[String]): ObserverConfig ="
+          )
+          .replace(
+            "report.error(s\"m4a-observer unknown probe: $other\")\n        Nil",
+            "throw new IllegalArgumentException(s\"m4a-observer unknown probe: $other\")"
+          )
+          .replace(
+            "report.error(s\"m4a-observer malformed option: $option\")\n          \"\" -> \"\"",
+            "throw new IllegalArgumentException(s\"m4a-observer malformed option: $option\")"
+          )
+          .replace(
+            "report.error(s\"m4a-observer missing option: $key\")\n          \"\"",
+            "throw new IllegalArgumentException(s\"m4a-observer missing option: $key\")"
+          )
+        IO.write(generated, adapted)
+        generated
+      }
     val classes = work / "observer-plugin" / "classes"
     IO.createDirectory(classes)
     val args = Seq(
       "-classpath", compilerCp.mkString(File.pathSeparator),
       "-d", classes.getAbsolutePath,
       "-color:never",
-      source.getAbsolutePath
+      observerSource.getAbsolutePath
     )
     val result = runJava(root, compilerCp, "dotty.tools.dotc.Main", args)
     IO.write(work / "observer-plugin" / "compiler-arguments.txt", args.mkString("", "\n", "\n"))
     IO.write(work / "observer-plugin" / "compiler.log", result._2)
     require(result._1 == 0, s"retained M4A observer did not compile: ${result._2}")
     IO.copyFile(descriptor, classes / "plugin.properties")
-    packageClasses(classes, work / "observer-plugin" / "m4a-observer_3-3.9.0.jar")
+    packageClasses(classes, work / "observer-plugin" / s"m4a-observer_3-$scalaVersion.jar")
   }
 
   private def artifactIdentity(marker: File, handlerClasspath: Seq[File]): String = {

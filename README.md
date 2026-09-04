@@ -189,11 +189,47 @@ Run the fresh pinned-peer build plus exact-3.9.0 M0/M1/M3/M4A/M4B gate with:
 bash scripts/verify-m4b-macroparadise.sh
 ```
 
-This is bounded evidence for one unreleased pinned Macro-Paradise commit on
-exact Scala 3.9.0, pending controller review. It is not cross-lane M4C evidence,
-a compatibility interval, general multi-plugin transparency, or release
-authorization. Routine three-lane core verification intentionally does not
-build the peer.
+This retained M4B result is bounded to one unreleased pinned Macro-Paradise
+commit on exact Scala 3.9.0. The M4C gate below extends the same real fixture
+across the two older exact lanes; neither result is a compatibility interval,
+general multi-plugin transparency, or release authorization. Routine
+three-lane core verification intentionally does not build the peer.
+
+## Exact cross-lane real Macro-Paradise evidence
+
+The `verifyM4C` gate reuses the retained real M4B fixture and assertions on
+exact Scala **3.3.8** and **3.8.4**. Each lane independently materializes and
+source-builds pinned Macro-Paradise commit
+`d773332c29efce90b3af343d34ae5450a93f6d93` in its own no-hardlink disposable
+root, using JDK 25 and sbt 1.12.15. No compiler-plugin binary is reused across
+exact Scala lanes and no peer artifact is published locally.
+
+On both older exact lanes, the actual installed plan in both plugin loading
+orders places the pinned plugin's single normal-path `paradiseGen` phase after
+`parser` and before `typer`. The same real external marker and precompiled
+handler generate `GenUser.generatedHello` while Allow Experimental authorizes
+the bounded provider reference in the same compiler invocation. The generated
+member and ordinary Allow API remain usable by a separate downstream compiler
+with no compiler plugins or marker/API artifacts. The retained permission,
+plugin-absence, sibling, and later-unit negatives remain fail closed.
+
+Run the two fresh older-lane peer builds, complete older-lane core/M4C gates,
+and retained exact-3.9.0 core/M4A/M4B regression with:
+
+```text
+bash scripts/verify-m4c-macroparadise.sh
+```
+
+Before either peer build starts, the script fails closed unless the active JVM
+reports Java specification feature 25 and each pinned disposable peer's
+`project/build.properties` selects sbt 1.12.15. Run the focused guard check with
+`bash scripts/test-verify-m4c-toolchain.sh`.
+
+This is a finite three-exact-line result for the one pinned peer commit, not a
+version interval or general plugin compatibility claim. Generic adversarial
+sensitive-window protection remains **unqualified** on 3.3.8 and 3.8.4 and
+retains the exact-3.9.0 fail-closed result. M4C and M4 remain subject to
+controller review; publication remains unauthorized.
 
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
