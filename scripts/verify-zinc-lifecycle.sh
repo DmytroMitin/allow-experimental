@@ -2,14 +2,17 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m5b.sh" >&2
+  echo "Usage: bash scripts/verify-zinc-lifecycle.sh" >&2
   exit 2
 fi
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 logs="$root/target/verification-logs"
 peer="$root/../macroparadise-scala3"
+export COURSIER_CACHE="${COURSIER_CACHE:-$root/target/verification-tool-state/coursier-cache}"
 mkdir -p -- "$logs"
+
+bash "$root/scripts/acquire-lifecycle-audit-sources.sh"
 
 peer_head_before=$(git -C "$peer" rev-parse HEAD)
 peer_status_before=$(git -C "$peer" status --porcelain=v1)
@@ -27,11 +30,11 @@ for lane in 3.3.8 3.8.4; do
       verify_preserved "$logs/m5b-$prior-preservation.sha256"
     fi
   done
-  sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4C verifyM5BSameJvm \
+  sbt -batch "++$lane" clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyMacroParadiseCoexistence verifySameJvmLifecycleOlder \
     2>&1 | tee "$logs/m5b-$lane.log"
   sha256sum \
-    "$root/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar" \
-    "$root/plugin/target/scala-$lane/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar" \
+    "$root/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar" \
+    "$root/plugin/target/scala-$lane/allow-experimental-plugin_$lane-0.1.0-SNAPSHOT.jar" \
     "$root/target/scala-$lane/m4c-verification/summary.txt" \
     "$root/target/scala-$lane/m5b-verification/same-jvm-summary.txt" \
     > "$logs/m5b-$lane-preservation.sha256"
@@ -40,16 +43,16 @@ done
 verify_preserved "$logs/m5b-3.3.8-preservation.sha256"
 verify_preserved "$logs/m5b-3.8.4-preservation.sha256"
 
-sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4A verifyM4B verifyM5ASameJvm \
+sbt -batch '++3.9.0' clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyPhaseObserverCoexistence verifyMacroParadiseCoexistence39 verifySameJvmLifecycle39 \
   2>&1 | tee "$logs/m5b-3.9.0.log"
 
 verify_preserved "$logs/m5b-3.3.8-preservation.sha256"
 verify_preserved "$logs/m5b-3.8.4-preservation.sha256"
 
-bash "$root/scripts/verify-m5a-zinc.sh" 2>&1 | tee "$logs/m5b-retained-m5a-zinc.log"
-sbt -batch '++3.9.0' verifyM5A 2>&1 | tee "$logs/m5b-retained-m5a-final.log"
+bash "$root/scripts/verify-zinc-lifecycle-3.9.0-fixture.sh" 2>&1 | tee "$logs/m5b-retained-m5a-zinc.log"
+sbt -batch '++3.9.0' verifyZincLifecycle39 2>&1 | tee "$logs/m5b-retained-m5a-final.log"
 
-bash "$root/scripts/verify-m5b-zinc.sh" 2>&1 | tee "$logs/m5b-zinc.log"
+bash "$root/scripts/verify-zinc-lifecycle-older-lanes.sh" 2>&1 | tee "$logs/m5b-zinc.log"
 
 verify_preserved "$logs/m5b-3.3.8-preservation.sha256"
 verify_preserved "$logs/m5b-3.8.4-preservation.sha256"
@@ -70,7 +73,7 @@ printf '%s\n' \
   'READ_ONLY_PEERS_BUILT_FOR_PROMPT_013=NO' \
   > "$logs/m5b-regression-summary.txt"
 
-sbt -batch '++3.9.0' verifyM5B 2>&1 | tee "$logs/m5b-final.log"
+sbt -batch '++3.9.0' verifyZincLifecycle 2>&1 | tee "$logs/m5b-final.log"
 
 sha256sum \
   "$root/target/scala-3.3.8/m5b-verification/same-jvm-summary.txt" \

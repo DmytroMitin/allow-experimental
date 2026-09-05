@@ -2,15 +2,15 @@
 set -euo pipefail
 
 PRODUCT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-HELPER="$PRODUCT_ROOT/scripts/m4c-toolchain.sh"
-MAIN="$PRODUCT_ROOT/scripts/verify-m4c-macroparadise.sh"
+HELPER="$PRODUCT_ROOT/scripts/macroparadise-toolchain.sh"
+MAIN="$PRODUCT_ROOT/scripts/verify-macroparadise-coexistence.sh"
 
 if test ! -f "$HELPER"; then
   echo "TOOLCHAIN TEST FAIL: reusable M4C peer-build toolchain guard is missing" >&2
   exit 1
 fi
 
-# shellcheck source=m4c-toolchain.sh
+# shellcheck source=macroparadise-toolchain.sh
 source "$HELPER"
 
 build_started=NO

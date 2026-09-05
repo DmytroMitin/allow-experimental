@@ -2,13 +2,13 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m4c-macroparadise.sh" >&2
+  echo "Usage: bash scripts/verify-macroparadise-coexistence.sh" >&2
   exit 2
 fi
 
 PRODUCT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-# shellcheck source=m4c-toolchain.sh
-source "$PRODUCT_ROOT/scripts/m4c-toolchain.sh"
+# shellcheck source=macroparadise-toolchain.sh
+source "$PRODUCT_ROOT/scripts/macroparadise-toolchain.sh"
 PEER_ROOT="$PRODUCT_ROOT/../macroparadise-scala3"
 PIN=d773332c29efce90b3af343d34ae5450a93f6d93
 DISPOSABLE_ROOT="$PRODUCT_ROOT/target/m4c-verification"
@@ -62,8 +62,8 @@ record_preservation() {
   sha256sum \
     "$peer_api" \
     "$peer_plugin" \
-    "$PRODUCT_ROOT/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar" \
-    "$PRODUCT_ROOT/plugin/target/scala-$lane/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar" \
+    "$PRODUCT_ROOT/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar" \
+    "$PRODUCT_ROOT/plugin/target/scala-$lane/allow-experimental-plugin_$lane-0.1.0-SNAPSHOT.jar" \
     "$PRODUCT_ROOT/target/scala-$lane/m4c-verification/summary.txt" \
     "$PRODUCT_ROOT/target/scala-$lane/m4c-verification/peer-build.txt" \
     "$PRODUCT_ROOT/target/scala-$lane/m4c-verification/source-hashes.txt" \
@@ -87,7 +87,7 @@ for lane in 3.3.8 3.8.4; do
 
   (
     cd "$PRODUCT_ROOT"
-    sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4C
+    sbt -batch "++$lane" clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyMacroParadiseCoexistence
   ) 2>&1 | tee "$LOG_ROOT/m4c-full-gate-$lane.log"
 
   record_preservation "$lane"
@@ -105,7 +105,7 @@ test "$(sha256sum "$peer_plugin_338" | cut -d ' ' -f 1)" != \
 
 (
   cd "$PRODUCT_ROOT"
-  sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4A verifyM4B
+  sbt -batch '++3.9.0' clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyPhaseObserverCoexistence verifyMacroParadiseCoexistence39
 ) 2>&1 | tee "$LOG_ROOT/m4c-retained-full-gate-3.9.0.log"
 
 for lane in "${qualified_lanes[@]}"; do

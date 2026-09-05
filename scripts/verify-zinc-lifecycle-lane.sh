@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 2 )); then
-  echo "Usage: bash scripts/verify-m5b-zinc-lane.sh <3.3.8|3.8.4> <comma-separated-wrong-plugin-versions>" >&2
+  echo "Usage: bash scripts/verify-zinc-lifecycle-lane.sh <3.3.8|3.8.4> <comma-separated-wrong-plugin-versions>" >&2
   exit 2
 fi
 
@@ -19,9 +19,9 @@ fixture="$work/fixture"
 evidence="$work/evidence"
 socket_runtime=$(mktemp -d "/tmp/allow-m5b-$lane-sbt.XXXXXX")
 trap 'rm -rf -- "$socket_runtime"' EXIT
-artifact_name=0.1.0-M0-SNAPSHOT
+artifact_name=0.1.0-SNAPSHOT
 annotation="$root/annotation/target/scala-$lane/allow-experimental-annotation_3-$artifact_name.jar"
-plugin="$root/plugin/target/scala-$lane/allow-experimental-plugin_3-$artifact_name.jar"
+plugin="$root/plugin/target/scala-$lane/allow-experimental-plugin_$lane-$artifact_name.jar"
 
 IFS=',' read -r -a wrong_versions <<< "$wrong_csv"
 if (( ${#wrong_versions[@]} == 0 || ${#wrong_versions[@]} > 2 )); then
@@ -31,8 +31,8 @@ fi
 wrong1=${wrong_versions[0]}
 wrong2=${wrong_versions[1]:-${wrong_versions[0]}}
 wrong_count=${#wrong_versions[@]}
-wrong_plugin1="$root/plugin/target/scala-$wrong1/allow-experimental-plugin_3-$artifact_name.jar"
-wrong_plugin2="$root/plugin/target/scala-$wrong2/allow-experimental-plugin_3-$artifact_name.jar"
+wrong_plugin1="$root/plugin/target/scala-$wrong1/allow-experimental-plugin_$wrong1-$artifact_name.jar"
+wrong_plugin2="$root/plugin/target/scala-$wrong2/allow-experimental-plugin_$wrong2-$artifact_name.jar"
 
 for input in "$annotation" "$plugin" "$wrong_plugin1" "$wrong_plugin2"; do
   if [[ ! -f "$input" ]]; then
@@ -411,9 +411,10 @@ lane_key=${lane//./_}
     'GLOBAL_EXPERIMENTAL_REQUIRED=NO'
 } > "$work/zinc-summary.txt"
 
-compiler_sources=$(find "$HOME/.cache/coursier" \
+source_cache=${COURSIER_CACHE:-$HOME/.cache/coursier}
+compiler_sources=$(find "$source_cache" \
   -path "*/scala3-compiler_3/$lane/scala3-compiler_3-$lane-sources.jar" -print -quit)
-bridge_sources=$(find "$HOME/.cache/coursier" \
+bridge_sources=$(find "$source_cache" \
   -path "*/scala3-sbt-bridge/$lane/scala3-sbt-bridge-$lane-sources.jar" -print -quit)
 compiler_jar="$(dirname -- "$compiler_sources")/scala3-compiler_3-$lane.jar"
 bridge_jar="$(dirname -- "$bridge_sources")/scala3-sbt-bridge-$lane.jar"

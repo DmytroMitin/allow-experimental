@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m5c.sh" >&2
+  echo "Usage: bash scripts/verify-persistent-build-lifecycle.sh" >&2
   exit 2
 fi
 
@@ -31,10 +31,10 @@ peer_state > "$peer_before"
 
 # Retain the accepted core, real Macro-Paradise, same-JVM, batch Zinc,
 # wrong-lane, and preservation gates without invoking a peer build.
-bash "$root/scripts/verify-m5b.sh" 2>&1 | tee "$logs/m5c-retained-m5b.log"
+bash "$root/scripts/verify-zinc-lifecycle.sh" 2>&1 | tee "$logs/m5c-retained-m5b.log"
 
 for lane in 3.3.8 3.8.4 3.9.0; do
-  bash "$root/scripts/verify-m5c-lane.sh" "$lane" 2>&1 | tee "$logs/m5c-$lane.log"
+  bash "$root/scripts/verify-persistent-build-lifecycle-lane.sh" "$lane" 2>&1 | tee "$logs/m5c-$lane.log"
 done
 
 peer_state > "$peer_after"
@@ -50,7 +50,7 @@ printf '%s\n' \
   'PEER_REPOSITORIES_BUILT_FOR_PROMPT_014=NO' \
   > "$logs/m5c-regression-summary.txt"
 
-sbt -batch '++3.9.0' verifyM5C 2>&1 | tee "$logs/m5c-final.log"
+sbt -batch '++3.9.0' verifyPersistentBuildLifecycle 2>&1 | tee "$logs/m5c-final.log"
 
 sha256sum \
   "$root/target/scala-3.3.8/m5c-verification/persistent-sbt-summary.txt" \

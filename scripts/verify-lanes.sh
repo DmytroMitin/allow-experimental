@@ -24,12 +24,12 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     verify_preserved "$earlier"
   done
 
-  gates=(clean verifyLane verifyM0 verifyM1 verifyM3)
+  gates=(clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation)
   if [[ "$lane" == "3.9.0" ]]; then
-    gates+=(verifyM4A)
+    gates+=(verifyPhaseObserverCoexistence)
   fi
 
-  sbt -batch "++$lane" "${gates[@]}" \
+  sbt -batch -Dsbt.supershell=false -Dsbt.server.autostart=false "++$lane" "${gates[@]}" \
     2>&1 | tee "target/verification-logs/$lane.log"
 
   for earlier in "${qualified_lanes[@]}"; do
@@ -37,8 +37,8 @@ for lane in 3.3.8 3.8.4 3.9.0; do
   done
 
   evidence=(
-    "annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
-    "plugin/target/scala-$lane/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar"
+    "annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar"
+    "plugin/target/scala-$lane/allow-experimental-plugin_$lane-0.1.0-SNAPSHOT.jar"
     "target/scala-$lane/m0-verification/provider/m0/Library\$package.tasty"
     "target/scala-$lane/m1-verification/positive/classes/m1/Library\$package.tasty"
     "target/scala-$lane/m1-verification/positive/compiler.log"

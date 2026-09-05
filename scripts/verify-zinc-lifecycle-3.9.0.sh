@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m5a.sh" >&2
+  echo "Usage: bash scripts/verify-zinc-lifecycle-3.9.0.sh" >&2
   exit 2
 fi
 
@@ -14,11 +14,11 @@ peer_head_before=$(git -C "$peer" rev-parse HEAD)
 peer_status_before=$(git -C "$peer" status --porcelain=v1)
 
 for lane in 3.3.8 3.8.4; do
-  sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4C \
+  sbt -batch "++$lane" clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyMacroParadiseCoexistence \
     2>&1 | tee "target/verification-logs/m5a-$lane.log"
 done
 
-sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4A verifyM4B verifyM5ASameJvm \
+sbt -batch '++3.9.0' clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyPhaseObserverCoexistence verifyMacroParadiseCoexistence39 verifySameJvmLifecycle39 \
   2>&1 | tee target/verification-logs/m5a-3.9.0.log
 
 test "$(git -C "$peer" rev-parse HEAD)" = "$peer_head_before"
@@ -35,10 +35,10 @@ printf '%s\n' \
   'READ_ONLY_PEERS_BUILT_FOR_M5A=NO' \
   > target/verification-logs/m5a-regression-summary.txt
 
-bash scripts/verify-m5a-zinc.sh \
+bash scripts/verify-zinc-lifecycle-3.9.0-fixture.sh \
   2>&1 | tee target/verification-logs/m5a-zinc.log
 
-sbt -batch '++3.9.0' verifyM5A \
+sbt -batch '++3.9.0' verifyZincLifecycle39 \
   2>&1 | tee target/verification-logs/m5a-final.log
 
 sha256sum \

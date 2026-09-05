@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 1 )); then
-  echo "Usage: bash scripts/verify-m5c-lane.sh <3.3.8|3.8.4|3.9.0>" >&2
+  echo "Usage: bash scripts/verify-persistent-build-lifecycle-lane.sh <3.3.8|3.8.4|3.9.0>" >&2
   exit 2
 fi
 
@@ -14,9 +14,9 @@ esac
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 work="$root/target/scala-$lane/m5c-verification"
-artifact_version=0.1.0-M0-SNAPSHOT
+artifact_version=0.1.0-SNAPSHOT
 annotation="$root/annotation/target/scala-$lane/allow-experimental-annotation_3-$artifact_version.jar"
-plugin="$root/plugin/target/scala-$lane/allow-experimental-plugin_3-$artifact_version.jar"
+plugin="$root/plugin/target/scala-$lane/allow-experimental-plugin_$lane-$artifact_version.jar"
 
 for input in "$annotation" "$plugin"; do
   [[ -f "$input" ]] || { echo "M5C FAIL [$lane]: missing exact-lane artifact $input" >&2; exit 1; }
@@ -143,12 +143,12 @@ runtime=$(mktemp -d "/tmp/allow-m5c-$lane.XXXXXX")
 trap 'rm -rf -- "$runtime"' EXIT
 
 create_fixture "$persistent_fixture" "$persistent_evidence"
-python3 "$root/scripts/m5c_driver.py" persistent-sbt \
+python3 "$root/scripts/build_lifecycle_driver.py" persistent-sbt \
   --lane "$lane" --fixture "$persistent_fixture" --evidence "$persistent_evidence" \
   --work "$work" --runtime "$runtime/persistent-sbt"
 
 create_fixture "$bsp_fixture" "$bsp_evidence"
-python3 "$root/scripts/m5c_driver.py" bsp \
+python3 "$root/scripts/build_lifecycle_driver.py" bsp \
   --lane "$lane" --fixture "$bsp_fixture" --evidence "$bsp_evidence" \
   --work "$work" --runtime "$runtime/bsp"
 

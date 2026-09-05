@@ -11,7 +11,7 @@ import scala.sys.process.{Process, ProcessLogger}
 
 /** Black-box verification of the task-owned overlay on an independently
   * materialized Quasiquotes pin. Peer acquisition and source builds are kept
-  * in scripts/verify-m6-quasiquotes.sh so this task never mutates a peer.
+  * in scripts/verify-quasiquotes-integration.sh so this task never mutates a peer.
   */
 object M6Verifier {
   private val pinned = "b7425e2f97a42107e78c96454d14f66581889f80"
@@ -159,7 +159,7 @@ object M6Verifier {
       sha256(peerStatusNow.getBytes(StandardCharsets.UTF_8))
     IO.write(work / "peer-concurrency-sample.txt", s"before=$peerBefore\nafter=$peerAfter\n")
     check("M6 orchestration contains no peer-mutating command") {
-      val script = IO.read(root / "scripts" / "verify-m6-quasiquotes.sh")
+      val script = IO.read(root / "scripts" / "verify-quasiquotes-integration.sh")
       Seq("checkout", "reset", "clean", "stash", "fetch", "pull", "add", "commit", "push").foreach { verb =>
         require(!script.contains(s"""git -C "$$PEER_ROOT" $verb"""), s"peer-mutating command present: $verb")
       }

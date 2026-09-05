@@ -215,7 +215,7 @@ object M0Verifier {
   }
 
   private def fixtureSources(root: File, name: String): Seq[File] = {
-    val directory = root / "m0-fixtures" / name
+    val directory = root / "verification" / "permission" / "fixtures" / name
     val sources = (directory ** "*.scala").get.sorted
     require(sources.nonEmpty, s"fixture has no Scala sources: ${directory.getAbsolutePath}")
     sources

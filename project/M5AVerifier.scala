@@ -407,7 +407,7 @@ class Broken extends Required
 
   private def buildObserver(root: File, work: File, scalaVersion: String,
       compilerCp: Seq[String]): File = {
-    val observerRoot = root / "m4a-observer"
+    val observerRoot = root / "verification" / "plugins" / "phase-observer"
     val source = observerRoot / "src" / "main" / "scala" / "io" / "github" / "dmytromitin" /
       "allowexperimental" / "m4aobserver" / "M4AObserverPlugin.scala"
     val descriptor = observerRoot / "src" / "main" / "resources" / "plugin.properties"

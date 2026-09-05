@@ -6,3 +6,4 @@
 .metals
 target
 project/project
+__pycache__/

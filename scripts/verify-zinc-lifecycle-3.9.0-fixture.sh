@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m5a-zinc.sh" >&2
+  echo "Usage: bash scripts/verify-zinc-lifecycle-3.9.0-fixture.sh" >&2
   exit 2
 fi
 
@@ -12,10 +12,10 @@ fixture="$work/fixture"
 evidence="$work/evidence"
 socket_runtime=$(mktemp -d /tmp/allow-m5a-sbt.XXXXXX)
 trap 'rm -rf -- "$socket_runtime"' EXIT
-annotation39="$root/annotation/target/scala-3.9.0/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
-plugin39="$root/plugin/target/scala-3.9.0/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar"
-annotation38="$root/annotation/target/scala-3.8.4/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
-plugin38="$root/plugin/target/scala-3.8.4/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar"
+annotation39="$root/annotation/target/scala-3.9.0/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar"
+plugin39="$root/plugin/target/scala-3.9.0/allow-experimental-plugin_3.9.0-0.1.0-SNAPSHOT.jar"
+annotation38="$root/annotation/target/scala-3.8.4/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar"
+plugin38="$root/plugin/target/scala-3.8.4/allow-experimental-plugin_3.8.4-0.1.0-SNAPSHOT.jar"
 
 for input in "$annotation39" "$plugin39" "$annotation38" "$plugin38"; do
   if [[ ! -f "$input" ]]; then

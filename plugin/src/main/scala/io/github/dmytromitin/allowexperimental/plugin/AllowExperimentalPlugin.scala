@@ -22,7 +22,7 @@ private[plugin] object AllowExperimentalPluginEntrypoint:
   val Name: String = "allow-experimental"
   val Description: String =
     "provisional exact-Scala-lane implementation permission for ordinary defs"
-  val UnsupportedOptionsMessage: String = "allow-experimental M0 accepts no plugin options"
+  val UnsupportedOptionsMessage: String = "allow-experimental accepts no plugin options"
 
   def phases(): List[PluginPhase] =
     ExactCompilerVersion.validate()
@@ -32,17 +32,17 @@ private[plugin] object AllowExperimentalPluginEntrypoint:
 private object AllowExperimentalSemantics:
   val MarkerClassName = "io.github.dmytromitin.allowexperimental.allowExperimental"
   val UnsupportedOwnerMessage =
-    "@allowExperimental M0 supports only non-inline def owners"
+    "@allowExperimental supports only non-inline def owners"
   val UnsupportedClassCarrierMessage =
-    "@allowExperimental M0 does not support experimental providers inherited from class owners"
+    "@allowExperimental does not support experimental providers inherited from class owners"
   val UnsupportedOverrideMessage =
-    "@allowExperimental M0 does not support experimental providers that participate in overrides"
+    "@allowExperimental does not support experimental providers that participate in overrides"
   val UnsupportedLocalOwnerMessage =
-    "@allowExperimental M1 does not support independently annotated local defs"
+    "@allowExperimental does not support independently annotated local defs"
   val UnsupportedNestedInlineMessage =
-    "@allowExperimental M1 does not support nested inline definitions"
+    "@allowExperimental does not support nested inline definitions"
   val UnsupportedMetadataMessage =
-    "@allowExperimental M1 does not support experimental annotation arguments"
+    "@allowExperimental does not support experimental annotation arguments"
   val IncompatibleSensitiveWindowPhaseMessage =
     "allow-experimental incompatible compiler-plugin phase inside the provider neutralization window"
 

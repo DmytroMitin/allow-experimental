@@ -53,7 +53,7 @@ printf 'M4B independent Git object comparisons: %s\n' "$COMPARABLE_OBJECTS"
 
 (
   cd "$PRODUCT_ROOT"
-  sbt -batch '++3.9.0' clean verifyLane verifyM0 verifyM1 verifyM3 verifyM4A verifyM4B
+  sbt -batch '++3.9.0' clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyPhaseObserverCoexistence verifyMacroParadiseCoexistence39
 ) 2>&1 | tee "$PRODUCT_GATE_LOG"
 
 PEER_HEAD_AFTER=$(git -C "$PEER_ROOT" rev-parse HEAD)

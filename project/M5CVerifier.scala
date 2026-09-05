@@ -190,7 +190,7 @@ object M5CVerifier {
       case line if line.startsWith("compiler-classpath=") => new File(line.substring("compiler-classpath=".length))
     }
     val annotation = root / "annotation" / "target" / s"scala-$lane" /
-      "allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
+      "allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar"
     val libraries = compilerCp.filter(file => file.getName.startsWith("scala3-library_3-") ||
       file.getName.startsWith("scala-library-"))
     val decompilerCp = (libraries ++ Seq(annotation) ++ outputs).map(_.getCanonicalPath).distinct

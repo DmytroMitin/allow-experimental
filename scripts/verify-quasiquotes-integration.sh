@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if (( $# != 0 )); then
-  echo "Usage: bash scripts/verify-m6-quasiquotes.sh" >&2
+  echo "Usage: bash scripts/verify-quasiquotes-integration.sh" >&2
   exit 2
 fi
 
@@ -10,7 +10,7 @@ PRODUCT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 PEER_ROOT="$PRODUCT_ROOT/../quasiquotes-scala3"
 PIN=b7425e2f97a42107e78c96454d14f66581889f80
 REMOTE=https://github.com/DmytroMitin/quasiquotes-scala3.git
-OVERLAY="$PRODUCT_ROOT/m6/quasiquotes-symbol-info-overlay.patch"
+OVERLAY="$PRODUCT_ROOT/verification/integration/quasiquotes-symbol-info/quasiquotes-symbol-info-overlay.patch"
 LOG_ROOT="$PRODUCT_ROOT/target/verification-logs"
 mkdir -p "$LOG_ROOT"
 
@@ -22,8 +22,8 @@ for lane in 3.3.8 3.8.4 3.9.0; do
   lane_root="$PRODUCT_ROOT/target/m6-verification/scala-$lane"
   disposable="$lane_root/quasiquotes-pinned"
   artifacts="$lane_root/artifacts"
-  annotation="$PRODUCT_ROOT/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-M0-SNAPSHOT.jar"
-  plugin="$PRODUCT_ROOT/plugin/target/scala-$lane/allow-experimental-plugin_3-0.1.0-M0-SNAPSHOT.jar"
+  annotation="$PRODUCT_ROOT/annotation/target/scala-$lane/allow-experimental-annotation_3-0.1.0-SNAPSHOT.jar"
+  plugin="$PRODUCT_ROOT/plugin/target/scala-$lane/allow-experimental-plugin_$lane-0.1.0-SNAPSHOT.jar"
   if grep -Fxq "SCALA_${lane//./_}_M6=PASS" "$LOG_ROOT/m6-summary-$lane.txt" 2>/dev/null; then
     test "$(git -C "$disposable" rev-parse HEAD)" = "$PIN"
     test -f "$annotation"; test -f "$plugin"
@@ -122,7 +122,7 @@ for lane in 3.3.8 3.8.4 3.9.0; do
     > "$lane_root/artifact-hashes.txt"
   (
     cd "$PRODUCT_ROOT"
-    sbt -batch "++$lane" clean verifyLane verifyM0 verifyM1 verifyM3 verifyM6
+    sbt -batch "++$lane" clean verifyLane verifyPermissionFixtures verifyPermissionScope verifyMacroImplementation verifyQuasiquotesIntegration
   ) 2>&1 | tee "$LOG_ROOT/m6-full-gate-$lane.log"
   cp "$PRODUCT_ROOT/target/scala-$lane/m6-verification/summary.txt" "$LOG_ROOT/m6-summary-$lane.txt"
 done
@@ -136,7 +136,7 @@ else
   PEER_CONCURRENT_DRIFT=YES
 fi
 
-git -C "$PRODUCT_ROOT" diff --quiet HEAD -- plugin annotation m4a-observer project/M0Verifier.scala \
+git -C "$PRODUCT_ROOT" diff --quiet HEAD -- plugin annotation verification/plugins/phase-observer project/M0Verifier.scala \
   project/M1Verifier.scala project/M3Verifier.scala project/M4AVerifier.scala project/M4BVerifier.scala \
   project/M5AVerifier.scala project/M5BVerifier.scala project/M5CVerifier.scala
 
