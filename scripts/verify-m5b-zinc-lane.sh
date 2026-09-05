@@ -236,10 +236,17 @@ object Use:
 EOF
 done
 
-sbt_command=(sbt -batch -Dsbt.supershell=false -Dsbt.server.autostart=false "-Dsbt.global.base=$fixture/.sbt-global")
+sbt_command=(
+  sbt -batch
+  -Dsbt.supershell=false
+  -Dsbt.server.autostart=false
+  "-Dsbt.global.base=$fixture/.sbt-global"
+  "-Dsbt.boot.directory=$fixture/.sbt-global/boot"
+)
 
 run_fixture_sbt() {
-  (cd "$fixture" && XDG_RUNTIME_DIR="$socket_runtime" "${sbt_command[@]}" "$@")
+  local fixture_sbt_opts="${SBT_OPTS:-} -Dsbt.global.base=$fixture/.sbt-global -Dsbt.boot.directory=$fixture/.sbt-global/boot"
+  (cd "$fixture" && XDG_RUNTIME_DIR="$socket_runtime" SBT_OPTS="$fixture_sbt_opts" "${sbt_command[@]}" "$@")
 }
 
 record_sources() {
