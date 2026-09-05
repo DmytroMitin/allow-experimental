@@ -12,6 +12,7 @@ source "$PRODUCT_ROOT/scripts/macroparadise-toolchain.sh"
 PEER_ROOT="$PRODUCT_ROOT/../macroparadise-scala3"
 PIN=d773332c29efce90b3af343d34ae5450a93f6d93
 DISPOSABLE_ROOT="$PRODUCT_ROOT/target/m4c-verification"
+M4B_DISPOSABLE="$PRODUCT_ROOT/target/m4b-verification/macroparadise-disposable"
 LOG_ROOT="$PRODUCT_ROOT/target/verification-logs"
 PEER_HEAD_BEFORE=$(git -C "$PEER_ROOT" rev-parse HEAD)
 PEER_STATUS_BEFORE=$(git -C "$PEER_ROOT" status --porcelain=v1)
@@ -30,7 +31,7 @@ verify_preserved() {
 
 materialize_peer_lane() {
   local lane="$1"
-  local disposable="$DISPOSABLE_ROOT/macroparadise-$lane"
+  local disposable="$2"
   if test ! -d "$disposable/.git"; then
     git clone --no-hardlinks --no-checkout "$PEER_ROOT" "$disposable"
     git -C "$disposable" checkout --detach "$PIN"
@@ -78,7 +79,7 @@ for lane in 3.3.8 3.8.4; do
     verify_preserved "$earlier"
   done
 
-  materialize_peer_lane "$lane"
+  materialize_peer_lane "$lane" "$DISPOSABLE_ROOT/macroparadise-$lane"
   (
     cd "$DISPOSABLE_ROOT/macroparadise-$lane"
     sbt -Dmacroparadise.exactScalaVersion="$lane" -batch \
@@ -102,6 +103,14 @@ peer_plugin_338="$DISPOSABLE_ROOT/macroparadise-3.3.8/plugin/target/scala-3.3.8/
 peer_plugin_384="$DISPOSABLE_ROOT/macroparadise-3.8.4/plugin/target/scala-3.8.4/macroparadise-scala3-plugin_3.8.4-0.1.1-SNAPSHOT.jar"
 test "$(sha256sum "$peer_plugin_338" | cut -d ' ' -f 1)" != \
   "$(sha256sum "$peer_plugin_384" | cut -d ' ' -f 1)"
+
+mkdir -p "$(dirname "$M4B_DISPOSABLE")"
+materialize_peer_lane 3.9.0 "$M4B_DISPOSABLE"
+(
+  cd "$M4B_DISPOSABLE"
+  sbt -Dmacroparadise.exactScalaVersion=3.9.0 -batch \
+    '++3.9.0!' clean 'pluginApi/packageBin' 'plugin/packageBin'
+) 2>&1 | tee "$LOG_ROOT/m4b-macroparadise-build-3.9.0.log"
 
 (
   cd "$PRODUCT_ROOT"
@@ -152,6 +161,7 @@ printf '%s\n' \
   sha256sum \
     target/verification-logs/m4c-macroparadise-build-3.3.8.log \
     target/verification-logs/m4c-macroparadise-build-3.8.4.log \
+    target/verification-logs/m4b-macroparadise-build-3.9.0.log \
     target/verification-logs/m4c-full-gate-3.3.8.log \
     target/verification-logs/m4c-full-gate-3.8.4.log \
     target/verification-logs/m4c-retained-full-gate-3.9.0.log \
