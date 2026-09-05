@@ -1,0 +1,59 @@
+diff --git a/frontend/src/main/scala/quasiquotes/types/ResolvedTypeReflection.scala b/frontend/src/main/scala/quasiquotes/types/ResolvedTypeReflection.scala
+index a5002d4..1cd5efc 100644
+--- a/frontend/src/main/scala/quasiquotes/types/ResolvedTypeReflection.scala
++++ b/frontend/src/main/scala/quasiquotes/types/ResolvedTypeReflection.scala
+@@ -1,6 +1,7 @@
+ package quasiquotes.types
+
+ import scala.quoted.*
++import io.github.dmytromitin.allowexperimental.allowExperimental
+
+ private[quasiquotes] object ResolvedTypeReflection:
+   def bindingFromWitness(using q: Quotes)(
+@@ -18,13 +19,18 @@ private[quasiquotes] object ResolvedTypeReflection:
+           )
+         }
+       case typeRef: TypeRef =>
+-        deriveTypeRef(typeRef).map { id =>
++        for
++          id <- deriveTypeRef(typeRef)
++          arity <- declarationArity(typeRef)
++        yield
++          val role =
++            if arity == 0 then GlobalSelectedTypeEnvironment.WitnessRole.Terminal
++            else GlobalSelectedTypeEnvironment.WitnessRole.Constructor(arity)
+           GlobalSelectedTypeEnvironment.Binding(
+             id,
+             witness,
+-            GlobalSelectedTypeEnvironment.WitnessRole.Terminal
++            role
+           )
+-        }
+       case _ =>
+         Left(
+           TypeQuasiquoteError(
+@@ -34,6 +40,24 @@ private[quasiquotes] object ResolvedTypeReflection:
+           )
+         )
+
++  @allowExperimental
++  private def declarationArity(using q: Quotes)(
++      typeRef: q.reflect.TypeRef
++  ): Either[TypeQuasiquoteError, Int] =
++    import q.reflect.*
++    val parameterInfos = typeRef.typeSymbol.primaryConstructor.paramSymss.flatten
++      .filter(_.isTypeParam)
++      .map(_.info)
++    parameterInfos.find:
++      case _: TypeBounds => false
++      case _ => true
++    match
++      case None => Right(parameterInfos.size)
++      case Some(_) =>
++        Left(TypeQuasiquoteError(TypeNameResolutionDiagnostics.compilerShapeUnsupported(
++          "type-parameter declaration info is not TypeBounds"
++        )))
++
+   def deriveTypeRef(using q: Quotes)(
+       typeRef: q.reflect.TypeRef
+   ): Either[TypeQuasiquoteError, ResolvedTypeNameId] =

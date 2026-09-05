@@ -339,11 +339,44 @@ for controller acceptance. It is not native IntelliJ editor typechecking,
 inspections, presentation-compiler/editor semantics, cancellation or unhandled
 exception recovery, a compatibility interval, or release authorization.
 
+## Disposable pinned Quasiquotes `Symbol.info` integration proof
+
+The M6 gate independently materializes public Quasiquotes commit
+`b7425e2f97a42107e78c96454d14f66581889f80` in a no-hardlink disposable root
+for each exact Scala **3.3.8**, **3.8.4**, and **3.9.0** lane. It never uses or
+builds the local Quasiquotes peer working tree and does not publish artifacts.
+
+The unmodified pin treats a bare selected `TypeRef` as a terminal, so a bare
+canonical `List` witness cannot serve as its admitted arity-1 constructor. The
+task-owned overlay changes only disposable `ResolvedTypeReflection`: one
+private, non-inline helper protected by `@allowExperimental` reads the real
+experimental `Symbol.info` of declaration type parameters. It classifies bare
+`List` and `Either` witnesses with arities 1 and 2 while preserving an ordinary
+zero-parameter terminal, the existing applied-witness route, and the bounded
+resolved List/Option/Either constructor policy.
+
+Every exact lane proves the same overlay source is rejected without its marker
+and with the marker but without the exact Allow plugin. The positive build uses
+no global `-experimental`; public selected-Type signatures are unchanged; the
+private implementation retains `Symbol.info` machinery but neither the Allow
+marker nor consumer `@experimental` metadata. A separately compiled macro and
+downstream exercise the bare-List result with neither Allow artifact.
+
+Run the fresh pinned build and exact-lane regression gate with:
+
+```text
+bash scripts/verify-m6-quasiquotes.sh
+```
+
+This is a disposable pinned integration proof pending controller review. It is
+not a Quasiquotes adoption, arbitrary generic-constructor support, a compiler
+version interval, or release/publication authorization.
+
 Class-carried experimental providers and provider override edges retain their
 fail-closed guards. Permission owners such as vals, classes, constructors and
 arbitrary blocks remain unsupported. This is not full `CrossVersionChecks`
 parity, exception-proof restoration, general multi-plugin coexistence,
-native IDE/editor support, or Quasiquotes integration.
+native IDE/editor support, or a Quasiquotes adoption claim.
 
 Without the plugin, an experimental reference remains rejected by Scala's
 ordinary diagnostic: permission safety is fail-closed. A marker on otherwise
