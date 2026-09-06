@@ -36,10 +36,15 @@ echo "TOOLCHAIN TEST PASS: sbt 1.12.14 rejected before peer build"
 m4c_require_toolchain_values 25 1.12.15
 echo "TOOLCHAIN TEST PASS: exact Java 25 and sbt 1.12.15 admitted"
 
+fixture_root=$(mktemp -d "${TMPDIR:-/tmp}/allow-experimental-toolchain-test.XXXXXX")
+trap 'rm -rf -- "$fixture_root"' EXIT
 for lane in 3.3.8 3.8.4; do
-  m4c_check_peer_toolchain "$PRODUCT_ROOT/target/m4c-verification/macroparadise-$lane"
+  fixture_peer="$fixture_root/macroparadise-$lane"
+  mkdir -p "$fixture_peer/project"
+  printf '%s\n' 'sbt.version=1.12.15' > "$fixture_peer/project/build.properties"
+  m4c_check_peer_toolchain "$fixture_peer"
 done
-echo "TOOLCHAIN TEST PASS: both pinned disposable roots validate with the live toolchain"
+echo "TOOLCHAIN TEST PASS: task-local peer fixtures validate with the live toolchain"
 
 check_line=$(awk '/m4c_check_peer_toolchain "\$disposable"/ { print NR; exit }' "$MAIN")
 build_line=$(awk '/sbt -Dmacroparadise\.exactScalaVersion=/ { print NR; exit }' "$MAIN")
