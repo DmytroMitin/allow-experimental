@@ -18,19 +18,22 @@ required_text=(
   '## Build and lifecycle behavior'
   '## Known limitations'
   '## Development and verification'
+  '### Local release preparation rehearsal'
   '## Related projects'
   '## License'
   "sbt -batch '++3.3.8!' 'annotation/publishLocal'"
   "sbt -batch '++3.3.8!' 'plugin/publishLocal'"
   "sbt -batch '++3.8.4!' 'plugin/publishLocal'"
   "sbt -batch '++3.9.0!' 'plugin/publishLocal'"
-  'val allowExperimentalVersion = "0.1.0-SNAPSHOT"'
+  'val allowExperimentalVersion = "0.1.0"'
   '"com.github.dmytromitin" %% "allow-experimental-annotation"'
   '"com.github.dmytromitin" % "allow-experimental-plugin"'
   '.cross(CrossVersion.full)'
   '% Provided'
   'No sbt plugin is required or supplied.'
   '[Apache License 2.0](LICENSE)'
+  'bash scripts/rehearse-local-release.sh <exact-source-commit>'
+  'EPHEMERAL_TEST_ONLY_NOT_FOR_UPLOAD'
 )
 
 for expected in "${required_text[@]}"; do

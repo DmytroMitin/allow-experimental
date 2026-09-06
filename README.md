@@ -52,7 +52,7 @@ the matching full-cross compiler plugin:
 ```scala
 ThisBuild / scalaVersion := "3.9.0" // or another exact supported lane
 
-val allowExperimentalVersion = "0.1.0-SNAPSHOT"
+val allowExperimentalVersion = "0.1.0"
 
 libraryDependencies +=
   "com.github.dmytromitin" %% "allow-experimental-annotation" %
@@ -187,7 +187,8 @@ compatibility beyond the exact tested compilers.
   exception or third-party phase behavior.
 - A marker without the plugin is inert: it grants no permission.
 - A wrong exact plugin must fail and never silently grant permission.
-- The project is experimental and unreleased.
+- The project is experimental; release `0.1.0` is prepared but is not yet
+  published.
 
 ## Development and verification
 
@@ -215,6 +216,22 @@ The isolated install smoke test redirects Ivy, sbt global/boot state, and
 Coursier cache into `target/isolated-publish-local`; it does not write to the
 normal user Ivy or Maven repositories. Expensive coexistence and lifecycle
 checks remain separate composable gates.
+
+### Local release preparation rehearsal
+
+The release-preparation rehearsal builds the exact four `0.1.0` coordinates
+into a task-local Maven repository, checks the normalized repository, signs
+its 16 primary files with a newly generated ephemeral test key, and compiles
+focused external consumers on all supported compiler lanes:
+
+```sh
+bash scripts/rehearse-local-release.sh <exact-source-commit>
+```
+
+Its generated bundle is classified
+`EPHEMERAL_TEST_ONLY_NOT_FOR_UPLOAD`. The rehearsal neither reads a Central
+credential nor performs a Central upload, tag, GitHub Release, or remote
+artifact publication.
 
 ## Related projects
 

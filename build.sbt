@@ -1,5 +1,5 @@
 ThisBuild / organization := "com.github.dmytromitin"
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "0.1.0"
 ThisBuild / scalaVersion := VerificationLane.defaultVersion
 ThisBuild / crossScalaVersions := VerificationLane.versions
 ThisBuild / publish / skip := true

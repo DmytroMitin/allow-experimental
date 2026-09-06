@@ -8,7 +8,7 @@ test -f "$VERIFY"
 bash -n "$VERIFY"
 
 required_tokens=(
-  'VERSION=0.1.0-SNAPSHOT'
+  'VERSION=0.1.0'
   'ORGANIZATION=com.github.dmytromitin'
   'publishLocal'
   '++3.3.8!'
@@ -30,7 +30,7 @@ for token in "${required_tokens[@]}"; do
   }
 done
 
-if rg -n '0\.1\.0-M7A-LOCAL|ORGANIZATION=io\.github\.dmytromitin|publishTo|\.ivy2/local|\.m2/repository|verify-release-candidate|[[:space:]]-experimental([^[:alnum:]-]|$)' "$VERIFY"; then
+if rg -n '0\.1\.0-SNAPSHOT|0\.1\.0-M7A-LOCAL|ORGANIZATION=io\.github\.dmytromitin|publishTo|\.ivy2/local|\.m2/repository|verify-release-candidate|[[:space:]]-experimental([^[:alnum:]-]|$)' "$VERIFY"; then
   echo 'ISOLATED PUBLISHLOCAL CONTRACT FAIL: obsolete, remote, user-cache, secret, or widened-authority path present' >&2
   exit 1
 fi

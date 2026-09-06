@@ -14,7 +14,7 @@ require_line() {
 }
 
 require_line 'ThisBuild / organization := "com.github.dmytromitin"'
-require_line 'ThisBuild / version := "0.1.0-SNAPSHOT"'
+require_line 'ThisBuild / version := "0.1.0"'
 require_line 'ThisBuild / versionScheme := Some("early-semver")'
 require_line 'ThisBuild / publishMavenStyle := true'
 require_line 'ThisBuild / homepage := Some(url("https://github.com/DmytroMitin/allow-experimental"))'

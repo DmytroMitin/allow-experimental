@@ -7,7 +7,7 @@ if (( $# != 0 )); then
 fi
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-VERSION=0.1.0-SNAPSHOT
+VERSION=0.1.0
 OUTER="$ROOT/target/isolated-publish-local"
 WORK="$OUTER/consumers"
 STATE="$OUTER/tool-state"
