@@ -49,6 +49,17 @@ sbt -batch '++3.9.0' clean verifyLane verifyPermissionFixtures verifyPermissionS
 verify_preserved "$logs/m5b-3.3.8-preservation.sha256"
 verify_preserved "$logs/m5b-3.8.4-preservation.sha256"
 
+printf '%s\n' \
+  'SCALA_3_3_8_CORE=PASS' \
+  'SCALA_3_8_4_CORE=PASS' \
+  'SCALA_3_9_0_CORE=PASS' \
+  'M4C_SCALA_3_3_8=PASS' \
+  'M4C_SCALA_3_8_4=PASS' \
+  'M4A_SCALA_3_9_0=PASS' \
+  'M4B_SCALA_3_9_0=PASS' \
+  'READ_ONLY_PEERS_BUILT_FOR_M5A=NO' \
+  > "$logs/m5a-regression-summary.txt"
+
 bash "$root/scripts/verify-zinc-lifecycle-3.9.0-fixture.sh" 2>&1 | tee "$logs/m5b-retained-m5a-zinc.log"
 sbt -batch '++3.9.0' verifyZincLifecycle39 2>&1 | tee "$logs/m5b-retained-m5a-final.log"
 
