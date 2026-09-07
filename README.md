@@ -31,26 +31,15 @@ to `provider()` still receives Scala's normal experimental-use diagnostic.
 
 ## Installation
 
-No release has been published to Maven Central yet. Until the first release,
-build and publish the artifacts from a local checkout.
-
-### Local checkout and publishLocal
-
-Publish the annotation once from the oldest supported lane, then publish one
-exact compiler-plugin artifact per lane:
-
-```sh
-sbt -batch '++3.3.8!' 'annotation/publishLocal'
-sbt -batch '++3.3.8!' 'plugin/publishLocal'
-sbt -batch '++3.8.4!' 'plugin/publishLocal'
-sbt -batch '++3.9.0!' 'plugin/publishLocal'
-```
+Version `0.1.0` is available from Maven Central. See the
+[GitHub release](https://github.com/DmytroMitin/allow-experimental/releases/tag/v0.1.0)
+for release notes and source archives.
 
 Configure a consumer with one Scala-3 binary-cross annotation dependency and
 the matching full-cross compiler plugin:
 
 ```scala
-ThisBuild / scalaVersion := "3.9.0" // or another exact supported lane
+ThisBuild / scalaVersion := "3.9.0" // or exact 3.3.8 / 3.8.4
 
 val allowExperimentalVersion = "0.1.0"
 
@@ -72,18 +61,6 @@ Allow Experimental artifact.
 
 No sbt plugin is required or supplied. Ordinary use needs only the annotation
 dependency and the compiler plugin dependency shown above.
-
-### After the first Maven Central release
-
-Use the same configuration with the released version after the first Maven
-Central publication:
-
-```scala
-val allowExperimentalVersion = "<released-version>"
-```
-
-This describes the future coordinate shape; it does not claim that a released
-version is currently downloadable.
 
 ## Supported exact Scala versions
 
@@ -187,10 +164,26 @@ compatibility beyond the exact tested compilers.
   exception or third-party phase behavior.
 - A marker without the plugin is inert: it grants no permission.
 - A wrong exact plugin must fail and never silently grant permission.
-- The project is experimental; release `0.1.0` is prepared but is not yet
-  published.
+- The project and `0.1.0` release are experimental.
 
 ## Development and verification
+
+### Local checkout and publishLocal
+
+For development or building from source, publish artifacts from a local
+checkout. Normal installation uses Maven Central as described above.
+
+Publish the annotation once from the oldest supported lane, then publish one
+exact compiler-plugin artifact per lane:
+
+```sh
+sbt -batch '++3.3.8!' 'annotation/publishLocal'
+sbt -batch '++3.3.8!' 'plugin/publishLocal'
+sbt -batch '++3.8.4!' 'plugin/publishLocal'
+sbt -batch '++3.9.0!' 'plugin/publishLocal'
+```
+
+Use the same consumer configuration shown in Installation for the local build.
 
 Fast exact-lane semantic verification:
 

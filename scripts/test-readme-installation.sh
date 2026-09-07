@@ -9,8 +9,9 @@ required_text=(
   '## What it does'
   '## Quick example'
   '## Installation'
+  'Version `0.1.0` is available from Maven Central.'
+  'https://github.com/DmytroMitin/allow-experimental/releases/tag/v0.1.0'
   '### Local checkout and publishLocal'
-  '### After the first Maven Central release'
   '## Supported exact Scala versions'
   '## Supported permission scope'
   '## Macro implementation use case'
@@ -48,8 +49,8 @@ if rg -n -i '\bM(0|1|3|4A|4B|4C|5A|5B|5C|6|7A)\b|Prompt[ _-]*0*[0-9]+|controller
   exit 1
 fi
 
-if rg -n -i 'is (now )?available on Maven Central|artifacts are available from Maven Central' "$README"; then
-  echo 'README INSTALLATION FAIL: README claims an unpublished Central artifact exists' >&2
+if rg -n -U -i 'No release has been published|Until the first release|After the first Maven Central release|<released-version>|future coordinate shape|not yet[[:space:]]+published|not currently downloadable' "$README"; then
+  echo 'README INSTALLATION FAIL: obsolete pre-release wording remains' >&2
   exit 1
 fi
 
