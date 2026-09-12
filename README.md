@@ -11,6 +11,23 @@ The compiler plugin is built separately for each exact supported compiler.
 Support for three named versions is a finite tested set, not a compatibility
 interval.
 
+## Stability warning
+
+`allow-experimental` deliberately relaxes Scala 3's transitive `@experimental` guardrail. It does **not** make an experimental API stable, and it does not provide compatibility guarantees when that API changes.
+
+Treat the plugin as an escape hatch, not as the default way to consume experimental APIs. Prefer a stable API or a refactoring that avoids the experimental dependency when that is practical.
+
+It is intended for cases where the experimental reference is a bounded implementation detail and the library author explicitly accepts responsibility for tracking, testing, and adapting that implementation as the experimental API evolves.
+
+Do not use it to hide experimentality that is part of a library's effective public contract. In particular, an experimental dependency should remain visible to consumers when it leaks through public signatures or types, public inline code or serialized TASTy, inheritance or overrides, generated public API, or some other downstream requirement.
+
+A useful rule of thumb is:
+
+- if a change to the experimental dependency can be absorbed by updating and republishing the library implementation while preserving the public API, `@allowExperimental` may be appropriate;
+- if consumers may themselves have to change because the experimental dependency changes, keep the affected API experimental.
+
+The plugin's intentionally restricted supported scope is part of this policy. Unsupported placements are rejected rather than treated as generally safe.
+
 ## Quick example
 
 ```scala
