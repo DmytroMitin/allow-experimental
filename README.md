@@ -28,6 +28,14 @@ A useful rule of thumb is:
 
 The plugin's intentionally restricted supported scope is part of this policy. Unsupported placements are rejected rather than treated as generally safe.
 
+### Real-world use
+
+`allow-experimental` is used by [Quasiquotes for Scala 3](https://github.com/DmytroMitin/quasiquotes-scala3) in the implementation of type quasiquotes such as `tqr"..."`.
+
+This is an example of the intended use case: an experimental Scala compiler/reflection API is needed in a bounded implementation detail, while that implementation choice should not require ordinary users of the resulting API to opt into Scala's global experimental mode.
+
+The library author takes responsibility for tracking changes to the experimental compiler API and adapting the implementation for the supported Scala versions.
+
 ## Quick example
 
 ```scala
